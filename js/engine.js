@@ -231,17 +231,35 @@
     // 1) 还没练过的知识点先各占 2 个位置。
     //    不这么做的话，"薄弱"和"抗遗忘"两档会把名额占满 ——
     //    之前"乘法估算"就是这样一整场都没出现过，孩子根本没机会看到它。
+    // 分两轮：第一轮让每个没练过的知识点各占 1 个位置，第二轮才补第 2 个。
+    //
+    // 这里改过一次。原来的写法是"每个没练过的知识点直接给 2 个名额"，
+    // 知识点少的时候没问题，但一多就会出事：中间的名额只有 count - 3 个，
+    // 而 5 个知识点按 2 个算要 10 个 —— 排在最末的知识点一个名额都拿不到，
+    // 整场练习里它一次都不出现，孩子根本没机会看到它。
+    // 先把"露面"这件事保住，再谈加练，顺序不能反过来。
     var untouched = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; });
     untouched.forEach(function (k) {
-      for (var n = 0; n < 2 && middle.length < middleTarget; n++) {
+      if (middle.length < middleTarget) {
+        middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
+      }
+    });
+    untouched.forEach(function (k) {
+      if (middle.length < middleTarget) {
         middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
       }
     });
 
-    // 2) 剩下的位置按薄弱程度轮流补
+    // 2) 剩下的位置按薄弱程度轮流补。
+    //
+    // 最弱的那个在一轮里占两个位置。只让它"先出"是不够的：
+    // 知识点少的时候轮流一圈它自然分得多，知识点一多（现在是 5 个），
+    // 轮流一圈每人分到一个，"薄弱优先"就只剩下一个说法 ——
+    // 题量上完全看不出差别，等于没优先。
     var wi = 0;
+    var order = byWeak.length > 1 ? [byWeak[0]].concat(byWeak) : byWeak.slice();
     while (middle.length < middleTarget) {
-      var k = byWeak[wi % byWeak.length];
+      var k = order[wi % order.length];
       wi++;
       middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
     }

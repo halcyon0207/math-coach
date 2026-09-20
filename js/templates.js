@@ -42,6 +42,13 @@
     EXACT_NOT_ESTIMATE: { label: '直接精算了，没有估算', advice: '估算题要求先把因数凑整再算，不用算出准确值。' },
     HALF_ROUNDED: { label: '只凑整了一个因数', advice: '两个因数都要凑整，只凑一个结果会偏。' },
     ESTIMATE_PRODUCT: { label: '整十数相乘算错', advice: '这一步是口算，先算有效数字，再数 0。' },
+    // ---- 第一单元 万以上数的认识 ----
+    UNIT_ZERO_FEW: { label: '去掉的 0 数少了', advice: '改写成"万"要去掉 4 个 0，改写成"亿"要去掉 8 个 0，去掉少了结果就偏大。' },
+    UNIT_ZERO_MORE: { label: '去掉的 0 数多了', advice: '改写成"万"只去掉 4 个 0，改写成"亿"只去掉 8 个 0，去掉多了结果就偏小。' },
+    NOT_REWRITTEN: { label: '照抄了原数，没有改写', advice: '改写要去掉末尾的 0，再换成"万"或"亿"作单位。' },
+    ROUND_DIR: { label: '该舍的进了、该进的舍了', advice: '看的那一位是 0~4 就舍去，是 5~9 才进 1。' },
+    WRONG_DIGIT: { label: '看的数位不对', advice: '省略哪一位后面的尾数，就看紧挨着它右边那一位，不是看更后面的。' },
+    NOT_IN_UNIT: { label: '没有用"万"或"亿"作单位', advice: '题目问的是多少万（亿），答案只填"万"前面的那个数就行。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -453,6 +460,180 @@
     };
   }
 
+  // 族 E：改写（380000 = 38 万 ／ 1200000000 = 12 亿）
+  //
+  // 干扰项只留两条真正会犯的错：
+  //   · 少去掉一个 0（38 → 380）
+  //   · 根本没改写，把原数照抄进来（380000）
+  // 想不出第三条有把握的就不凑 —— 宁可选项少，也不要污染归因数据。
+  //
+  // k 取末位非 0 的数：这样原数末尾的 0 正好是要去掉的个数，
+  // 不会多出一个 0 来让孩子以为是"去掉 5 个"。
+  function familyRewrite(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var k = pickCore(rng, spec.kMin, spec.kMax);
+        var dropZeros = spec.dropZeros;
+        var unitName = spec.unitName;
+        var raw = k * Math.pow(10, dropZeros);
+        var unitValue = '1' + new Array(dropZeros + 1).join('0');
+
+        var cands = [dropZeros];
+        if (dropZeros - 1 > 0) cands.push(dropZeros - 1);
+        cands.push(dropZeros + 1);
+
+        var dropStep = {
+          id: 'drop',
+          tier: 1,
+          type: 'choice',
+          prompt: '把 ' + raw + ' 改写成用「' + unitName + '」作单位的数，' +
+            '要去掉 ' + raw + ' 末尾的几个 0？',
+          answer: dropZeros,
+          options: shuffle(rng, cands).map(function (v) {
+            return {
+              value: v,
+              label: v + ' 个',
+              tag: v === dropZeros ? null : (v < dropZeros ? 'UNIT_ZERO_FEW' : 'UNIT_ZERO_MORE')
+            };
+          }),
+          hint: '1 ' + unitName + ' = ' + unitValue + '，所以要去掉 ' + dropZeros + ' 个 0。',
+          teach: ['1 ' + unitName + ' = ' + unitValue + '，去掉 ' + dropZeros +
+            ' 个 0 就换成「' + unitName + '」作单位']
+        };
+
+        var finalStep = {
+          id: 'final',
+          tier: 0,
+          type: 'number',
+          prompt: raw + ' = （　）' + unitName,
+          answer: k,
+          distractors: dedupeDistractors(k, [
+            { value: k * 10, tag: 'UNIT_ZERO_FEW' },
+            { value: raw, tag: 'NOT_REWRITTEN' }
+          ]),
+          hint: '先去掉 ' + raw + ' 末尾的 ' + dropZeros + ' 个 0。',
+          teach: [
+            '① 改写成「' + unitName + '」作单位，要去掉末尾 ' + dropZeros + ' 个 0',
+            '② ' + raw + ' 去掉末尾 ' + dropZeros + ' 个 0 是 ' + k,
+            '③ 所以 ' + raw + ' = ' + k + unitName
+          ]
+        };
+
+        return {
+          stem: '把下面的数改写成用「' + unitName + '」作单位的数。',
+          steps: [dropStep, finalStep],
+          facts: {
+            kind: 'rewrite', raw: raw, k: k, dropZeros: dropZeros,
+            unitName: unitName, expect: k
+          }
+        };
+      }
+    };
+  }
+
+  // 族 F：求近似数（384400 ≈ 38 万 ／ 1496000000 ≈ 15 亿）
+  //
+  // 这一类最容易错的不是"四舍五入"这四个字，而是**看错了哪一位**：
+  // 省略万位后面的尾数要看千位，可孩子很自然地就去看百位。
+  // 所以"看错数位"单独占一个错因标签，不混进"该进没进"里 ——
+  // 混在一起就没法区分"规则不会"和"看错地方"，干预方式完全不同。
+  function familyRound(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var unitName = spec.unitName;         // '万' / '亿'
+        var unitPow = spec.unitPow;           // 10000 / 100000000
+        var lookPow = unitPow / 10;           // 要看的那一位：千位 / 千万位
+        var lookName = spec.lookName;
+        var nextPow = lookPow / 10;           // 更后面一位：百位 / 百万位
+        var nextName = spec.nextName;
+
+        var w = pickInt(rng, spec.wMin, spec.wMax);
+        var d = pickInt(rng, 0, 9);                  // 关键位上的数字
+        // 尾数不能为 0，否则"省略尾数"没东西可省，这题就是废题
+        var rest = pickInt(rng, 1, lookPow - 1);
+        var n = w * unitPow + d * lookPow + rest;
+
+        var up = d >= 5;
+        var answer = up ? w + 1 : w;
+        var wrongDir = up ? w : w + 1;               // 该进没进 / 该舍没舍
+        //
+        // 注意：「看错数位」这个错因**不能**放进最终答案的干扰项里。
+        // 无论看千位还是看百位，算出来的结果都只能是 w 或 w+1 ——
+        // 也就是"正确答案"或"该进没进"，数值上和它们完全重合，
+        // 放进去必然被去重掉，孩子答错了也归不出这个因。
+        // 所以这条错误路径只在 tier 1 的"要看哪一位"那一步上探测。
+
+        var lookStep = {
+          id: 'look',
+          tier: 1,
+          type: 'choice',
+          prompt: '省略「' + unitName + '」位后面的尾数，要看哪一位上的数？',
+          answer: lookPow,
+          options: shuffle(rng, [lookPow, nextPow, unitPow]).map(function (v) {
+            var name = v === lookPow ? lookName : (v === nextPow ? nextName : unitName + '位');
+            return { value: v, label: name, tag: v === lookPow ? null : 'WRONG_DIGIT' };
+          }),
+          hint: '要省掉哪一位后面的数，就看紧挨着它右边的那一位。',
+          teach: ['省略' + unitName + '位后面的尾数，要看' + lookName]
+        };
+
+        var dirStep = {
+          id: 'dir',
+          tier: 2,
+          type: 'choice',
+          prompt: lookName + '上是 ' + d + '，尾数该舍去还是进 1？',
+          answer: up ? 2 : 1,
+          options: shuffle(rng, [1, 2]).map(function (v) {
+            return {
+              value: v,
+              label: v === 1 ? '舍去' : '进 1',
+              tag: v === (up ? 2 : 1) ? null : 'ROUND_DIR'
+            };
+          }),
+          hint: '0~4 舍去，5~9 进 1。',
+          teach: [lookName + '上是 ' + d + '，' + (up ? '5 及以上，进 1' : '比 5 小，舍去')]
+        };
+
+        var finalStep = {
+          id: 'final',
+          tier: 0,
+          type: 'number',
+          prompt: n + ' ≈ （　）' + unitName,
+          answer: answer,
+          distractors: dedupeDistractors(answer, [
+            { value: wrongDir, tag: 'ROUND_DIR' },
+            { value: w * unitPow, tag: 'NOT_IN_UNIT' }
+          ]),
+          hint: '看清' + lookName + '上是几，决定舍还是进，再去掉' + unitName + '位后面的尾数。',
+          teach: [
+            '① 省略' + unitName + '位后面的尾数，要看' + lookName,
+            '② ' + lookName + '上是 ' + d + '，' + (up ? '进 1' : '舍去'),
+            '③ 所以 ' + n + ' ≈ ' + answer + unitName
+          ]
+        };
+
+        return {
+          stem: '省略' + unitName + '位后面的尾数，求近似数。',
+          steps: [lookStep, dirStep, finalStep],
+          facts: {
+            kind: 'approx', n: n, w: w, lookDigit: d, answer: answer,
+            unitName: unitName, expect: answer
+          }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -513,6 +694,30 @@
       family: familyEstimate, id: 'T-0406-B', kp: 'M4A-04-06', difficulty: 0.60,
       shape: '三位数 × 两位数的估算', method: 'M-ESTIMATE',
       aDigits: 3
+    },
+
+    // ---- 01-05 改写（以万、亿为单位）----
+    {
+      family: familyRewrite, id: 'T-0105-A', kp: 'M4A-01-05', difficulty: 0.35,
+      shape: '整万数改写成"万"', method: 'M-CHANGE-UNIT',
+      unitName: '万', dropZeros: 4, kMin: 12, kMax: 98
+    },
+    {
+      family: familyRewrite, id: 'T-0105-B', kp: 'M4A-01-05', difficulty: 0.45,
+      shape: '整亿数改写成"亿"', method: 'M-CHANGE-UNIT',
+      unitName: '亿', dropZeros: 8, kMin: 12, kMax: 98
+    },
+
+    // ---- 01-06 求近似数（四舍五入、省略尾数）----
+    {
+      family: familyRound, id: 'T-0106-A', kp: 'M4A-01-06', difficulty: 0.55,
+      shape: '省略万位后面的尾数', method: 'M-LOOK-NEXT',
+      unitName: '万', unitPow: 10000, lookName: '千位', nextName: '百位', wMin: 10, wMax: 99
+    },
+    {
+      family: familyRound, id: 'T-0106-B', kp: 'M4A-01-06', difficulty: 0.62,
+      shape: '省略亿位后面的尾数', method: 'M-LOOK-NEXT',
+      unitName: '亿', unitPow: 100000000, lookName: '千万位', nextName: '百万位', wMin: 10, wMax: 99
     }
   ];
 

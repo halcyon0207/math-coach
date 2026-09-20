@@ -30,7 +30,12 @@ test('每个模板生成 400 次，最终答案都等于程序算出的乘积', 
 
       assert.ok(final, `${tpl.id} 缺少最终步骤`);
 
-      if (f.isEstimate) {
+      if (f.kind === 'rewrite' || f.kind === 'approx') {
+        // 第一单元（改写 / 求近似数）不是乘法题，没有"两个因数"。
+        // 答案同样必须由程序算出，只是算的规则不同 —— 规则写在 facts.expect 里。
+        assert.strictEqual(final.answer, f.expect,
+          `${tpl.id} 答案 ${final.answer} 与程序按规则算出的 ${f.expect} 不一致`);
+      } else if (f.isEstimate) {
         // 估算题：答案是"凑整后的整十数之积"，并应与精确值相近（不超过 30% 偏差）
         assert.strictEqual(final.answer, f.answer, `${tpl.id} 估算答案不一致`);
         const dev = Math.abs(f.answer - f.a * f.b) / (f.a * f.b);
@@ -155,9 +160,44 @@ test('题目与答案的对应性：每一步的答案都能串成一条自洽�
 
       // 所有族的共同底线（估算题例外：它的答案本来就该是"凑整后的近似值"）
       const final = st.final;
-      if (!f.isEstimate) {
+      if (!f.isEstimate && !f.kind) {
         assert.strictEqual(final.answer, f.a * f.b,
           `${id} 最终答案不等于 ${f.a} × ${f.b}`);
+      }
+
+      // 第一单元：改写（380000 = 38 万）
+      if (f.kind === 'rewrite') {
+        assert.ok(st.drop, `${id} 缺少"去掉几个 0"这一步`);
+        // 题干必须点名原数，否则孩子不知道在说哪个数
+        assert.ok(st.drop.prompt.includes(String(f.raw)),
+          `${id} 题干没有点名原数：${st.drop.prompt}`);
+        assert.strictEqual(f.raw, f.k * Math.pow(10, f.dropZeros),
+          `${id} 原数 ${f.raw} 与"${f.k} 去掉 ${f.dropZeros} 个 0"对不上`);
+        assert.strictEqual(final.answer, f.raw / Math.pow(10, st.drop.answer),
+          `${id}「去掉 ${st.drop.answer} 个 0」和答案 ${final.answer} 对不上`);
+        continue;
+      }
+
+      // 第一单元：求近似数（384400 ≈ 38 万）
+      if (f.kind === 'approx') {
+        const unitPow = f.unitName === '亿' ? 100000000 : 10000;
+        const lookPow = unitPow / 10;
+
+        // 尾数不能为 0，否则"省略尾数"没东西可省，这是一道废题
+        assert.notStrictEqual(f.n % unitPow, 0, `${id} ${f.n} 尾数为 0，是废题`);
+
+        // 题干说"看的那一位上是几"，这个数必须真的是那一位上的数
+        assert.strictEqual(Math.floor(f.n / lookPow) % 10, f.lookDigit,
+          `${id} 关键位取错了`);
+        assert.ok(st.dir.prompt.includes(String(f.lookDigit)),
+          `${id} 关键位的数字与题干不一致：${st.dir.prompt}`);
+
+        // 舍还是进，必须和关键位上的数一致
+        assert.strictEqual(st.dir.answer, f.lookDigit >= 5 ? 2 : 1,
+          `${id} 舍/进的判断与关键位 ${f.lookDigit} 不一致`);
+        assert.strictEqual(final.answer, f.lookDigit >= 5 ? f.w + 1 : f.w,
+          `${id} 四舍五入的结果不对`);
+        continue;
       }
 
       // 族 A：两个因数末尾都有 0（含"数 0"这一步）
@@ -197,6 +237,45 @@ test('题目与答案的对应性：每一步的答案都能串成一条自洽�
         assertNearestRound(st.roundB, id);
       }
     }
+  });
+});
+
+test('求近似数："看错数位"和"该进没进"必须是两种不同的错因', () => {
+  // 这两件事的干预方式完全不同：
+  //   · 该进没进 —— 是规则没记住，讲一遍"0~4 舍、5~9 入"就行
+  //   · 看错数位 —— 是不知道该看哪一位，得先讲"省略到哪一位，就看它右边一位"
+  // 混成一个标签的话，孩子会被反复教他已经会的东西。
+  const tpl = Templates.TEMPLATES.find(t => t.id === 'T-0106-A');
+  const seen = { ROUND_DIR: 0, WRONG_DIGIT: 0, NOT_IN_UNIT: 0 };
+
+  for (let i = 0; i < 2000; i++) {
+    const q = Engine.buildQuestion(tpl, rngFor(i + 1), 2);
+    const st = stepsById(q);
+
+    // 最终答案上能观察到的是"该进没进"和"没用万作单位"
+    st.final.distractors.forEach(d => {
+      const g = Engine.gradeStep(st.final, d.value);
+      assert.strictEqual(g.isCorrect, false);
+      assert.ok(g.errorTag && g.errorTag !== 'OTHER',
+        `${tpl.id} 干扰项 ${d.value} 没有归因`);
+      if (seen[g.errorTag] !== undefined) seen[g.errorTag]++;
+    });
+
+    // "看错数位"只能在"要看哪一位"这一步上观察到 ——
+    // 看错数位算出来的结果，数值上和"该进没进"完全重合，
+    // 塞进最终答案的干扰项里必然被去重掉，孩子答错了也归不出这个因。
+    st.look.options.forEach(o => {
+      if (o.value === st.look.answer) return;
+      const g = Engine.gradeStep(st.look, o.value);
+      assert.strictEqual(g.isCorrect, false);
+      assert.ok(g.errorTag && g.errorTag !== 'OTHER',
+        `${tpl.id} 选项「${o.label}」没有归因`);
+      if (seen[g.errorTag] !== undefined) seen[g.errorTag]++;
+    });
+  }
+
+  Object.keys(seen).forEach(k => {
+    assert.ok(seen[k] > 0, `错因 ${k} 从未被触发，说明干扰项没覆盖这条错误路径`);
   });
 });
 
@@ -413,9 +492,14 @@ test('组卷：题量正确、前三题是热身、同一道题不重复', () =>
 
 test('组卷：练过的知识点里，掌握度低的会被优先安排', () => {
   const state = freshState();
-  // 三个都练过 —— 否则会被下面那条"没练过优先"的规则接管
-  ['M4A-04-01', 'M4A-04-04', 'M4A-04-06'].forEach(id => {
-    state.stats[id] = { attempts: 6, corrects: 6, wrongs: 0, lastPracticedAt: Date.now() };
+  // 全部都练过 —— 否则会被"没练过的知识点优先"那条规则接管，
+  // 而这条测试要看的是"练过之后，弱的能不能被优先安排"。
+  //
+  // 这里必须遍历所有已实现的知识点，不能只写原来那三个：
+  // 只给三个造记录的话，后加的知识点会被当成"没练过"，名额就被它们占走了，
+  // 看起来像是"薄弱点没被优先"，其实是测试自己的场景没造对。
+  Knowledge.implemented().forEach(k => {
+    state.stats[k.id] = { attempts: 6, corrects: 6, wrongs: 0, lastPracticedAt: Date.now() };
   });
   state.mastery['M4A-04-01'] = 0.95;
   state.mastery['M4A-04-04'] = 0.10;

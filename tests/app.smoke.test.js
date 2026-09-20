@@ -240,10 +240,10 @@ test('提示不会泄露答案，且最多给两级', () => {
 
   app.click('hint');
   const h1 = app.html();
-  assert.ok(h1.includes('提示1'));
+  assert.ok(h1.includes('提示1'), '点第一次「我要提示」应当出现提示1');
 
   app.click('hint');
-  assert.ok(app.html().includes('提示2'));
+  assert.ok(app.html().includes('提示2'), '点第二次「我要提示」应当出现提示2');
 
   // 第一级提示只给方向，绝不能把答案直接说出来
   if (answer) {
@@ -258,12 +258,18 @@ test('提示不会泄露答案，且最多给两级', () => {
 test('练习页是"左边看、右边做"的两栏结构', () => {
   const app = boot();
   app.click('start');
-  const html = app.html();
+  let html = app.html();
 
   assert.ok(html.includes('practice-grid') && html.includes('col-main') && html.includes('col-side'),
     '练习页应当分成两栏');
   assert.ok(html.includes('workzone'), '作答区要独立成一块');
   assert.ok(html.includes('wz-prompt'), '作答区要重复显示当前这一步问什么');
+
+  // 键盘提示只在填空题上出现 —— 选择题是点选项，没有"敲数字"这回事。
+  // 而第一题的第一步不一定是填空题（阶梯题开头常是一个辅助步骤），
+  // 所以必须先走到填空题再看，不能拿第一屏直接断言。
+  assert.ok(advanceToNumberStep(app), '没走到填空题');
+  html = app.html();
   assert.ok(html.includes('wz-kbd-hint') && html.includes('键盘'),
     '作答区要提示可以直接用键盘输入');
 
@@ -277,7 +283,9 @@ test('方法徽章跟着题型走，并且把方法的步骤显示出来', () =>
   const app = boot();
   app.click('start');
   const html = app.html();
-  assert.ok(/方法 · (盯住 0|拆开看|先估后算)/.test(html), '题目上应当有方法徽章');
+  // 名单要跟着 knowledge.js 里的 METHODS 一起更新：第一题出到哪个题型是随机的，
+  // 只要徽章上的方法名不在这个名单里，这条就会偶发失败（看起来像界面的 bug，其实是漏改名）。
+  assert.ok(/方法 · (盯住 0|拆开看|先估后算|四位一截|看下一位)/.test(html), '题目上应当有方法徽章');
   assert.ok(html.includes('mchip'), '方法的三个步骤应当显示在题目上，而不是只给一个名字');
 });
 

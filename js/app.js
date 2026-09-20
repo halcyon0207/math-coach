@@ -23,6 +23,9 @@
     activeStep: 0,
     input: '',
     hintLevel: 0,
+    // 这一题里到底有没有用过提示。hintLevel 是按"步"归零的，
+    // 不能拿它来判断"这题用过提示没有"，所以单独记一个。
+    hintUsedInQuestion: false,
     feedback: null,      // { tone: 'ok'|'warn'|'info'|'teach', text }
     questionStartAt: 0,
     results: [],
@@ -420,6 +423,7 @@
     app.input = '';
     app.choiceValue = null;
     app.hintLevel = 0;
+    app.hintUsedInQuestion = false;
     app.feedback = null;
     app.questionStartAt = Date.now();
   }
@@ -427,7 +431,20 @@
   function advanceStep() {
     var q = currentQuestion();
     for (var i = 0; i < q.steps.length; i++) {
-      if (!app.stepStates[i].done) { app.activeStep = i; return; }
+      if (!app.stepStates[i].done) {
+        if (app.activeStep !== i) {
+          app.activeStep = i;
+          // 提示是按"步"给的，不是按"题"给的。
+          //
+          // 这里改过一个真 bug：某一步错到第三遍时 hintLevel 会被顶到 2，
+          // 而它以前只在换题时归零 —— 于是同题后面几步的「我要提示」
+          // 一直是禁用的。孩子刚被迫看完了上一步的答案，
+          // 转头面对下一步却再也要不到任何提示，正好在最需要支撑的时候被撤空。
+          // 题型一变（把选择题排在填空题前面）就会踩到，不是偶发。
+          app.hintLevel = 0;
+        }
+        return;
+      }
     }
     app.activeStep = q.steps.length;
   }
@@ -476,12 +493,14 @@
         app.choiceValue = null;
       } else if (ss.attempts === 2) {
         app.hintLevel = Math.max(app.hintLevel, 1);
+        app.hintUsedInQuestion = true;
         app.feedback = { tone: 'info', text: '给你一点提示：' + E.hintFor(step, 1) };
         app.input = '';
         app.choiceValue = null;
       } else {
         ss.done = true;
         app.hintLevel = 2;
+        app.hintUsedInQuestion = true;
         app.feedback = {
           tone: 'teach',
           text: '这道题的正确答案是 ' + displayAnswer(step, step.answer) + '。',
@@ -506,6 +525,7 @@
     if (!step) return;
     if (app.hintLevel >= 2) return;
     app.hintLevel++;
+    app.hintUsedInQuestion = true;
     app.feedback = { tone: 'info', text: '提示' + app.hintLevel + '：' + E.hintFor(step, app.hintLevel) };
     render();
   }
@@ -532,8 +552,8 @@
       attempts: fs.attempts,
       errorTag: fs.isCorrect ? null : fs.errorTag,
       magnitudeFailed: !!fs.magnitudeFailed,
-      hintLevel: app.hintLevel,
-      isCorrectAfterHint: !!fs.isCorrect && app.hintLevel > 0,
+      hintLevel: app.hintUsedInQuestion ? Math.max(app.hintLevel, 1) : 0,
+      isCorrectAfterHint: !!fs.isCorrect && !!app.hintUsedInQuestion,
       inputType: finalStep.type,
       timeSpentMs: Date.now() - app.questionStartAt
     };
