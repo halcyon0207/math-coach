@@ -27,7 +27,8 @@
       mastery: {},    // kpId -> 掌握概率
       stats: {},      // kpId -> { attempts, corrects, wrongs, lastPracticedAt }
       history: [],    // 每一条作答
-      sessions: []    // 每次练习的汇总
+      sessions: [],   // 每次练习的汇总
+      unit: 'all'     // 这次练哪个单元（'all' = 全部混着来）
     };
   }
 
@@ -44,7 +45,8 @@
         mastery: s.mastery || {},
         stats: s.stats || {},
         history: s.history || [],
-        sessions: s.sessions || []
+        sessions: s.sessions || [],
+        unit: s.unit || 'all'
       };
     } catch (e) {
       return defaultState();

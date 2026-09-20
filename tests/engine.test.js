@@ -279,6 +279,26 @@ test('求近似数："看错数位"和"该进没进"必须是两种不同的错�
   });
 });
 
+test('每道题都必须有带数字的题干，不能让孩子直接面对孤零零的一步', () => {
+  // 阶梯是"把这道题拆开"，不是"替代这道题"。
+  // 题干丢了数字，孩子看到"① 25 × 4 = ?"根本不知道这是哪道题的一步。
+  Templates.TEMPLATES.forEach((tpl, ti) => {
+    for (let i = 0; i < 20; i++) {
+      const q = Engine.buildQuestion(tpl, rngFor(ti * 51 + i + 1), 2);
+      assert.ok(q.stem && q.stem.length > 3, `${tpl.id} 没有题干`);
+      const f = q.facts;
+      if (f.kind === 'rewrite') {
+        assert.ok(q.stem.includes(String(f.raw)), `${tpl.id} 题干里没有原数：${q.stem}`);
+      } else if (f.kind === 'approx') {
+        assert.ok(q.stem.includes(String(f.n)), `${tpl.id} 题干里没有原数：${q.stem}`);
+      } else {
+        assert.ok(q.stem.includes(String(f.a)) && q.stem.includes(String(f.b)),
+          `${tpl.id} 题干里没有两个因数：${q.stem}`);
+      }
+    }
+  });
+});
+
 test('有效部分的积本身带 0 时，讲解必须把这个"多出来的 0"说清楚', () => {
   // 5 × 6 = 30 已经带一个 0，所以 500 × 60 = 30000 末尾是 4 个 0，但只补了 3 个。
   // 不解释，孩子和家长都会以为系统数错了。

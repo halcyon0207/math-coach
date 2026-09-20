@@ -22,6 +22,12 @@
     stepStates: [],
     activeStep: 0,
     input: '',
+    // 画笔：strokes 存的是每一笔的点，重新渲染后照着再画一遍。
+    // 不直接存画布图像，是因为 render() 会整块替换 innerHTML，画布元素会被丢掉。
+    strokes: [],
+    drawing: false,
+    penOn: false,
+    showRuler: false,
     hintLevel: 0,
     // 这一题里到底有没有用过提示。hintLevel 是按"步"归零的，
     // 不能拿它来判断"这题用过提示没有"，所以单独记一个。
@@ -44,9 +50,21 @@
   function viewHome() {
     var state = app.state;
     var practiced = state.sessions.length;
+    var unit = state.unit || 'all';
 
-    // 方法按"题型"归类，不是按知识点归类，所以这里从模板反查；
-    // 顺便列出它出现在哪些知识点上 —— 「同一个方法能用在不同地方」这件事本身就值得让孩子看见。
+    // ---------- 练哪个单元 ----------
+    // 按单元出题：一次只练一个单元，混在一起孩子容易乱，
+    // 组卷也会把名额摊薄，哪个单元都练不深。
+    var unitBtns = '<div class="unit-row">' +
+      '<button class="unit-btn' + (unit === 'all' ? ' on' : '') + '" data-act="unit" data-u="all">全部</button>' +
+      K.units().map(function (u) {
+        return '<button class="unit-btn' + (unit === u ? ' on' : '') + '" data-act="unit" data-u="' + esc(u) + '">' +
+          esc(K.shortUnit(u)) + '</button>';
+      }).join('') +
+      '</div>';
+
+    // ---------- 方法，按单元分组 ----------
+    // 方法挂在"题型"上，不是挂在"知识点"上，所以从模板反查它被用在哪些知识点、哪些单元。
     var methodUse = {};
     T.TEMPLATES.forEach(function (t) {
       if (!t.method || !K.METHODS[t.method]) return;
@@ -54,13 +72,12 @@
       methodUse[t.method].kps[t.kp] = 1;
     });
 
-    var methodCards = Object.keys(methodUse).map(function (mid) {
+    function methodRow(mid) {
       var u = methodUse[mid];
       var kpNames = Object.keys(u.kps).map(function (id) {
         return (K.byId(id) || {}).name || id;
       }).join('、');
-      return '' +
-        '<div class="method-row">' +
+      return '<div class="method-row">' +
         '<div class="method-name">「' + esc(u.m.name) + '」</div>' +
         '<div class="method-tip">' + esc(u.m.tip) + '</div>' +
         '<div class="method-steps">' + u.m.steps.map(function (s, i) {
@@ -68,27 +85,50 @@
         }).join('') + '</div>' +
         '<div class="method-where">用在：' + esc(kpNames) + '</div>' +
         '</div>';
+    }
+
+    // 只显示所选单元的方法：点了哪个单元，就只讲那个单元用得到的。
+    // 还没学到的单元先不拿出来 —— 摆在一起只会让孩子觉得要记一大堆。
+    var targetUnits = unit === 'all' ? K.units() : [unit];
+    var methodCards = targetUnits.map(function (u) {
+      var mids = Object.keys(methodUse).filter(function (mid) {
+        return Object.keys(methodUse[mid].kps).some(function (kid) {
+          var k = K.byId(kid);
+          return k && k.unit === u;
+        });
+      });
+      if (!mids.length) return '';
+      return '<div class="unit-block"><div class="unit-head">' + esc(K.shortUnit(u)) + '</div>' +
+        mids.map(methodRow).join('') + '</div>';
     }).join('');
 
     var lastLine = practiced
       ? '你已经练过 ' + practiced + ' 次了'
       : '第一次来，先做 10 道热身题';
 
+    var unitName = unit === 'all' ? '全部单元' : K.shortUnit(unit);
+
     return '' +
       '<div class="hero">' +
       '<h1>数学小教练</h1>' +
-      '<p class="hero-sub">西师大版 · 四年级上册 · 第四单元</p>' +
+      '<p class="hero-sub">西师大版 · 四年级上册</p>' +
+      '</div>' +
+
+      '<div class="card">' +
+      '<h2 class="card-title">练哪个单元</h2>' +
+      '<p class="card-note">一次练一个单元，比混在一起效果好。</p>' +
+      unitBtns +
       '</div>' +
 
       '<div class="card card-cta">' +
-      '<div class="cta-line">今天练 10 题，大约 10 分钟</div>' +
-      '<div class="cta-sub">' + esc(lastLine) + '。前三道是热身，帮你先进入状态。</div>' +
+      '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
+      '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前三道是热身。</div>' +
       '<button class="btn btn-primary btn-lg" data-act="start">开始练习</button>' +
       '</div>' +
 
       '<div class="card">' +
-      '<h2 class="card-title">你会用到的三个方法</h2>' +
-      '<p class="card-note">做题的时候，注意看你用的是哪一个。</p>' +
+      '<h2 class="card-title">做题的方法</h2>' +
+      '<p class="card-note">按单元分开列。做题的时候，注意看你用的是哪一个。</p>' +
       methodCards +
       '</div>' +
 
@@ -96,6 +136,7 @@
       '<h2 class="card-title">学习进度</h2>' +
       '<p class="card-note">看看哪块亮、哪块暗。</p>' +
       '<button class="btn btn-ghost btn-block" data-act="progress">查看掌握度地图</button>' +
+      '<button class="btn btn-ghost btn-block" data-act="parent">家长报告（时间 · 效率 · 错点）</button>' +
       '</div>' +
 
       '<p class="footnote">数据只保存在这台设备上，不会上传。</p>';
@@ -106,7 +147,7 @@
     var state = app.state;
     var kps = K.implemented();
 
-    var rows = kps.map(function (k) {
+    function kpRow(k) {
       var p = E.masteryOf(state, k.id);
       var st = E.statsOf(state, k.id);
       var untouched = st.attempts === 0;
@@ -126,6 +167,12 @@
         (method ? '<span class="kp-method">主要方法：' + esc(method.name) + '</span>' : '') +
         '</div>' +
         '</div>';
+    }
+
+    // 按单元分组，和首页的单元选择对得上 —— 孩子刚练完哪个单元，就来这一栏看
+    var rows = K.units().map(function (u) {
+      var rs = kps.filter(function (k) { return k.unit === u; }).map(kpRow).join('');
+      return '<div class="unit-block"><div class="unit-head">' + esc(K.shortUnit(u)) + '</div>' + rs + '</div>';
     }).join('');
 
     // 错因汇总：这是"计算不仔细"的体检报告
@@ -151,7 +198,7 @@
       '</div>' +
 
       '<div class="card">' +
-      '<h2 class="card-title">三个知识点</h2>' +
+      '<h2 class="card-title">各单元掌握度</h2>' +
       '<p class="card-note">越接近满格越熟练。</p>' +
       rows +
       '</div>' +
@@ -240,9 +287,17 @@
             esc(o.label) + '</button>';
         }).join('') + '</div>';
       } else {
+        // 用真的 input，让手机直接弹系统输入法。
+        //
+        // 以前是自己画一排数字键，手机上要点半天，退格也不顺手。
+        // type 用 text + inputmode="numeric"：iOS 和安卓都会给数字键盘，
+        // 又不会像 type=number 那样冒出步进箭头、把空格和前导 0 吃掉。
         inputHtml = '<div class="answer-box">' +
-          (app.input === '' ? '<span class="ph">填答案</span>' : esc(app.input)) +
-          '<span class="caret"></span></div>';
+          '<input id="answerInput" class="answer-input" type="text" inputmode="numeric" ' +
+          'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ' +
+          'enterkeyhint="done" placeholder="点一下，用输入法直接填" ' +
+          'value="' + esc(app.input) + '">' +
+          '</div>';
       }
       workzone =
         '<div class="wz-label">第 ' + (app.activeStep + 1) + ' 步' +
@@ -265,18 +320,25 @@
         '</div>';
     }
 
-    var keypad = '';
-    if (!questionDone && step && step.type !== 'choice') {
-      keypad = '' +
-        '<div class="keypad">' +
-        [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) {
-          return '<button class="key" data-act="key" data-k="' + n + '">' + n + '</button>';
-        }).join('') +
-        '<button class="key" data-act="key" data-k=".">.</button>' +
-        '<button class="key" data-act="key" data-k="0">0</button>' +
-        '<button class="key key-del" data-act="del">⌫</button>' +
-        '</div>';
-    }
+    // 屏幕数字键盘整个去掉了：手机上用系统输入法比自己画的一排按钮快得多，
+    // 电脑上本来就敲物理键盘。留两套输入方式只会互相打架。
+
+    // ---------- 直接在题目上写写画画 ----------
+    // 「四位一截」这类题，以前孩子得把数抄到纸上才敢数位数、画分级线。
+    // 现在笔迹就画在题目上，数位也能一键摊开看。
+    var bigN = bigNumberOf(q);
+    var rulerPanel = (app.showRuler && bigN)
+      ? '<div class="ruler-card">' + rulerHtml(bigN, q) + '</div>'
+      : '';
+
+    var toolsHtml = '<div class="q-tools">' +
+      '<button class="btn btn-soft btn-sm" data-act="pen">' +
+      (app.penOn ? '✎ 画笔：开' : '✎ 画一画') + '</button>' +
+      (app.penOn ? '<button class="btn btn-soft btn-sm" data-act="pen-clear">清掉笔迹</button>' : '') +
+      (bigN ? '<button class="btn btn-soft btn-sm" data-act="ruler">' +
+        (app.showRuler ? '收起数位' : '看看数位') + '</button>' : '') +
+      '</div>' +
+      (app.penOn ? '<div class="pen-tip">手指直接在题目上画，画错了点「清掉笔迹」。</div>' : '');
 
     // 方法徽章 + 步骤，让"这个方法具体怎么做"在题目上就能看见，不用去别处找
     var methodBar = '';
@@ -301,17 +363,19 @@
       '<div class="col-main">' +
       '<div class="why"><span class="why-k">为什么给你出这道题</span>' + esc(q.reason) + '</div>' +
       '<div class="card card-q">' +
+      '<canvas id="qCanvas" class="q-canvas' + (app.penOn ? ' on' : '') + '"></canvas>' +
       methodBar +
-      (q.stem ? '<div class="stem">' + esc(q.stem) + '</div>' : '') +
+      (q.stem ? '<div class="stem"><span class="stem-label">题目</span>' + esc(q.stem) + '</div>' : '') +
       '<ol class="steps">' + stepsHtml + '</ol>' +
       '</div>' +
+      toolsHtml +
+      rulerPanel +
       '</div>' +
 
       '<div class="col-side">' +
       '<div class="workzone">' + workzone + '</div>' +
       feedback +
       actions +
-      keypad +
       '</div>' +
 
       '</div>';
@@ -324,6 +388,117 @@
       return o ? o.label : String(v);
     }
     return String(v);
+  }
+
+  /* ============================== 数位标尺 ============================== */
+  // 万以上数的题，孩子最卡的一步是"这到底是几位数、万级在哪"。
+  // 以前只能把数抄到纸上数，这里直接把每一位和它的数位摊开，
+  // 并且按"每 4 位一级"断开 —— 断在哪，就是「四位一截」的答案。
+  var DIGIT_NAMES = ['个', '十', '百', '千', '万', '十万', '百万', '千万',
+    '亿', '十亿', '百亿', '千亿'];
+
+  function bigNumberOf(q) {
+    var f = q && q.facts ? q.facts : null;
+    if (!f) return null;
+    if (f.kind === 'rewrite') return f.raw;
+    if (f.kind === 'approx') return f.n;
+    return null;
+  }
+
+  function rulerHtml(n, q) {
+    var s = String(n);
+    var f = q.facts || {};
+    // 求近似数要标出"该看哪一位"：万位后面看千位，亿位后面看千万位
+    var mark = f.kind === 'approx' ? (f.unitName === '亿' ? 7 : 3) : -1;
+
+    var cells = '';
+    for (var i = 0; i < s.length; i++) {
+      var unitIdx = s.length - 1 - i;
+      if (i > 0 && unitIdx % 4 === 0) cells += '<span class="rcut"></span>';
+      cells += '<span class="rcell">' +
+        '<b class="rdigit' + (unitIdx === mark ? ' rmark' : '') + '">' + s.charAt(i) + '</b>' +
+        '<i class="rname">' + esc(DIGIT_NAMES[unitIdx] || '') + '</i>' +
+        '</span>';
+    }
+
+    var tip = f.kind === 'approx'
+      ? '橙色那一位说了算：0~4 舍去，5~9 进 1。'
+      : '每 4 位是一级。竖线后面是「个级」，把个级这 4 位换成「' +
+        esc(f.unitName || '') + '」字，前面剩下的就是答案。';
+
+    return '<div class="ruler">' + cells + '</div>' +
+      '<div class="ruler-tip">' + esc(tip) + '</div>';
+  }
+
+  /* ============================== 画笔 ============================== */
+  // 笔迹按"点"存，不按图像存：render() 每次都会换掉整块 innerHTML，
+  // 画布元素跟着重建，只有存成数据才能重画出来。
+  function posOf(cv, e) {
+    var r = cv.getBoundingClientRect ? cv.getBoundingClientRect() : { left: 0, top: 0 };
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function redrawCanvas(ctx, cv) {
+    if (!ctx) return;
+    var dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, cv.width / dpr, cv.height / dpr);
+    app.strokes.forEach(function (st) {
+      if (!st.length) return;
+      ctx.beginPath();
+      ctx.moveTo(st[0].x, st[0].y);
+      for (var i = 1; i < st.length; i++) ctx.lineTo(st[i].x, st[i].y);
+      // 只点了一下没拖动，也要留下一个点
+      if (st.length === 1) ctx.lineTo(st[0].x + 0.5, st[0].y + 0.5);
+      ctx.stroke();
+    });
+  }
+
+  function endStroke() { app.drawing = false; }
+
+  // 每次 render() 之后都要重新绑定：画布是新的，尺寸也可能变了
+  function attachCanvas() {
+    var cv = el('qCanvas');
+    if (!cv || typeof cv.getContext !== 'function') return;
+    var host = cv.parentNode;
+    if (!host) return;
+
+    var w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    cv.style.width = w + 'px';
+    cv.style.height = h + 'px';
+
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#e8590c';
+    redrawCanvas(ctx, cv);
+
+    cv.addEventListener('pointerdown', function (e) {
+      if (!app.penOn) return;
+      if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
+      app.drawing = true;
+      app.strokes.push([posOf(cv, e)]);
+      redrawCanvas(ctx, cv);
+      e.preventDefault();
+    });
+    cv.addEventListener('pointermove', function (e) {
+      if (!app.penOn || !app.drawing) return;
+      var st = app.strokes[app.strokes.length - 1];
+      if (!st) return;
+      st.push(posOf(cv, e));
+      redrawCanvas(ctx, cv);
+      e.preventDefault();
+    });
+    cv.addEventListener('pointerup', endStroke);
+    cv.addEventListener('pointercancel', endStroke);
+    cv.addEventListener('pointerleave', endStroke);
   }
 
   /* ============================== 视图：结果 ============================== */
@@ -404,7 +579,7 @@
   function startSession() {
     var seed = E.randomSeed();
     var rng = E.mulberry32(seed);
-    app.session = E.buildSession(app.state, rng, E.QUESTIONS_PER_SESSION);
+    app.session = E.buildSession(app.state, rng, E.QUESTIONS_PER_SESSION, app.state.unit);
     app.session.seed = seed;
     app.cursor = 0;
     app.results = [];
@@ -424,6 +599,8 @@
     app.choiceValue = null;
     app.hintLevel = 0;
     app.hintUsedInQuestion = false;
+    app.strokes = [];          // 换题就把上一题的笔迹清掉
+    app.showRuler = false;
     app.feedback = null;
     app.questionStartAt = Date.now();
   }
@@ -609,16 +786,181 @@
     render();
   }
 
+  /* ============================== 视图：家长报告 ============================== */
+  // 给家长看的页，不给孩子看：练了多久、效率怎么样、错在哪。
+  // 数据全部来自本机的历史记录，不上传任何地方。
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts);
+    function p(x) { return (x < 10 ? '0' : '') + x; }
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function fmtDur(ms) {
+    if (!ms || ms <= 0) return '—';
+    var min = Math.floor(ms / 60000);
+    var sec = Math.round((ms % 60000) / 1000);
+    return min >= 1 ? (min + ' 分 ' + sec + ' 秒') : (sec + ' 秒');
+  }
+
+  function viewParent() {
+    var state = app.state;
+    var hist = state.history || [];
+
+    // 按场次聚合：一场总共用了多久、平均每题几秒
+    var bySession = {};
+    hist.forEach(function (h) {
+      var k = bySession[h.sessionId] = bySession[h.sessionId] || { n: 0, ok: 0, ms: 0, hints: 0 };
+      k.n++;
+      if (h.isCorrect) k.ok++;
+      k.ms += h.timeSpentMs || 0;
+      if (h.hintLevel > 0) k.hints++;
+    });
+
+    var totalMs = 0;
+    hist.forEach(function (h) { totalMs += h.timeSpentMs || 0; });
+    var totalOk = hist.filter(function (h) { return h.isCorrect; }).length;
+
+    // ---- 每一场 ----
+    var sessionRows = (state.sessions || []).slice().reverse().slice(0, 30).map(function (s) {
+      var agg = bySession[s.id] || { n: 0, ok: 0, ms: 0, hints: 0 };
+      var pct = agg.n ? Math.round(agg.ok / agg.n * 100) : 0;
+      // 效率就看"每题约多少秒"：明显变慢，多半是卡在某个知识点上磨蹭
+      var perQ = agg.n ? Math.round(agg.ms / agg.n / 1000) : 0;
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(fmtTime(s.endedAt || s.startedAt)) + '</span>' +
+        '<span class="kp-label">' + (s.quit ? '中途退出' : '完成') + '</span></div>' +
+        '<div class="kp-foot">' +
+        '<span>' + s.total + ' 题对 ' + s.correct + ' 题（' + pct + '%）</span>' +
+        '<span>每题约 ' + perQ + ' 秒 · 用提示 ' + agg.hints + ' 次</span>' +
+        '</div></div>';
+    }).join('');
+
+    // ---- 按知识点 ----
+    var kpRows = K.implemented().map(function (k) {
+      var st = E.statsOf(state, k.id);
+      if (!st.attempts) return '';
+      var pct = Math.round(st.corrects / st.attempts * 100);
+      var tags = {};
+      hist.forEach(function (h) {
+        if (h.kpId !== k.id || !h.errorTag || h.errorTag === 'OTHER') return;
+        tags[h.errorTag] = (tags[h.errorTag] || 0) + 1;
+      });
+      var top = '', topN = 0;
+      Object.keys(tags).forEach(function (t) { if (tags[t] > topN) { topN = tags[t]; top = t; } });
+      var topInfo = top ? (T.ERROR_TAGS[top] || { label: top }) : null;
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(k.name) + '</span>' +
+        '<span class="kp-label">' + pct + '%</span></div>' +
+        '<div class="kp-foot">' +
+        '<span>练过 ' + st.attempts + ' 题，对 ' + st.corrects + ' 题</span>' +
+        '<span>' + (topInfo
+          ? '最常错：' + esc(topInfo.label) + (topN > 1 ? '（' + topN + ' 次）' : '')
+          : '还没错过') + '</span>' +
+        '</div></div>';
+    }).join('');
+
+    // ---- 最近错题 ----
+    var wrongRows = hist.filter(function (h) { return !h.isCorrect; }).slice(-15).reverse()
+      .map(function (h) {
+        var info = T.ERROR_TAGS[h.errorTag] || { label: '再算一遍试试' };
+        return '<div class="kp-row">' +
+          '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
+          '<span class="kp-label">' + esc(fmtTime(h.ts)) + '</span></div>' +
+          '<div class="kp-foot"><span>错因：' + esc(info.label) + '</span>' +
+          '<span>' + (h.hintLevel > 0 ? '用了提示' : '没用提示') + '</span></div>' +
+          '</div>';
+      }).join('');
+
+    return '' +
+      '<div class="topbar">' +
+      '<button class="btn-icon" data-act="home">←</button>' +
+      '<span class="topbar-title">家长报告</span>' +
+      '<span class="topbar-right"></span>' +
+      '</div>' +
+
+      '<div class="card">' +
+      '<h2 class="card-title">总览</h2>' +
+      (hist.length
+        ? '<p class="card-note">练了 ' + (state.sessions || []).length + ' 次 · 共 ' + hist.length +
+          ' 题 · 答对 ' + totalOk + ' 题（' + Math.round(totalOk / hist.length * 100) + '%） · 做题用时 ' +
+          esc(fmtDur(totalMs)) + '</p>'
+        : '<p class="card-note">还没有练习记录。孩子做完一场，这里就能看到时间和正确率。</p>') +
+      '<button class="btn btn-ghost btn-block" data-act="export-csv">导出全部记录（CSV，可用 Excel 打开）</button>' +
+      '</div>' +
+
+      '<div class="card">' +
+      '<h2 class="card-title">每次练习</h2>' +
+      '<p class="card-note">看「每题约多少秒」判断效率：明显变慢多半是卡住了。</p>' +
+      (sessionRows || '<p class="card-note">还没有记录。</p>') +
+      '</div>' +
+
+      '<div class="card">' +
+      '<h2 class="card-title">错误点都在哪</h2>' +
+      (kpRows || '<p class="card-note">还没有数据。</p>') +
+      '</div>' +
+
+      '<div class="card">' +
+      '<h2 class="card-title">最近的错题</h2>' +
+      (wrongRows || '<p class="card-note">还没有错题，很好。</p>') +
+      '</div>';
+  }
+
+  function exportCsv() {
+    var rows = [['时间', '知识点', '题干', '对错', '错因', '用时（秒）', '用了提示']];
+    (app.state.history || []).forEach(function (h) {
+      rows.push([
+        fmtTime(h.ts),
+        (K.byId(h.kpId) || {}).name || h.kpId,
+        h.stem || '',
+        h.isCorrect ? '对' : '错',
+        h.errorTag ? ((T.ERROR_TAGS[h.errorTag] || {}).label || h.errorTag) : '',
+        Math.round((h.timeSpentMs || 0) / 1000),
+        h.hintLevel > 0 ? '是' : '否'
+      ]);
+    });
+    // \uFEFF 让 Excel 认出这是 UTF-8，否则中文全是乱码
+    var csv = '\uFEFF' + rows.map(function (r) {
+      return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\r\n');
+
+    try {
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = '数学小教练-练习记录.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.alert('导出失败：' + (e && e.message ? e.message : e));
+    }
+  }
+
   /* ============================== 渲染与事件 ============================== */
   function render() {
     var root = el('app');
     var html = app.view === 'home' ? viewHome()
       : app.view === 'practice' ? viewPractice()
         : app.view === 'result' ? viewResult()
-          : viewProgress();
+          : app.view === 'parent' ? viewParent()
+            : viewProgress();
 
     root.innerHTML = '<div class="view view-' + app.view + '">' + html + '</div>';
+    // 画布是新造出来的，尺寸要重算、笔迹要照着再画一遍
+    if (app.view === 'practice') attachCanvas();
     window.scrollTo(0, 0);
+  }
+
+  // 在输入框里打字：只更新状态，不重新渲染。
+  // 一渲染整块 innerHTML 就被换掉，输入框失去焦点、光标跳走，
+  // 手机上的输入法也会被收起来 —— 那还不如回到自己画的那排数字键。
+  function onInput(e) {
+    var t = e.target;
+    if (!t || t.id !== 'answerInput') return;
+    app.input = t.value;
   }
 
   function onClick(e) {
@@ -634,9 +976,21 @@
     if (act === 'start') return startSession();
     if (act === 'home') { app.session = null; app.view = 'home'; return render(); }
     if (act === 'progress') { app.view = 'progress'; return render(); }
+    if (act === 'parent') { app.view = 'parent'; return render(); }
+    if (act === 'unit') {
+      app.state.unit = t.getAttribute('data-u') || 'all';
+      S.save(app.state);
+      return render();
+    }
+    if (act === 'export-csv') return exportCsv();
     if (act === 'quit') return quitSession();
-    if (act === 'key') { app.input += t.getAttribute('data-k'); return render(); }
-    if (act === 'del') { app.input = app.input.slice(0, -1); return render(); }
+    if (act === 'pen') {
+      app.penOn = !app.penOn;
+      app.strokes = [];        // 开关切换就清掉，免得留着上一题的笔迹
+      return render();
+    }
+    if (act === 'pen-clear') { app.strokes = []; return render(); }
+    if (act === 'ruler') { app.showRuler = !app.showRuler; return render(); }
     if (act === 'opt') {
       app.choiceValue = t.getAttribute('data-v');
       if (/^-?\d+(\.\d+)?$/.test(app.choiceValue)) app.choiceValue = Number(app.choiceValue);
@@ -695,13 +1049,19 @@
       return;
     }
 
+    // 焦点在输入框里时，数字和退格交给系统输入法处理。
+    // 这里再拦一道就会变成"打一个字进去两个"。
+    var inInput = !!e.target && String(e.target.tagName || '') === 'INPUT';
+
     if (/^[0-9.]$/.test(e.key)) {
+      if (inInput) return;
       e.preventDefault();
       app.input += e.key;
       render();
       return;
     }
     if (e.key === 'Backspace') {
+      if (inInput) return;
       e.preventDefault();
       app.input = app.input.slice(0, -1);
       render();
@@ -711,6 +1071,7 @@
   function init() {
     app.state = S.load();
     el('app').addEventListener('click', onClick);
+    el('app').addEventListener('input', onInput);
     document.addEventListener('keydown', onKeyDown);
     render();
   }

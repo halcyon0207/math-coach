@@ -222,7 +222,9 @@
         var answer = a * b;
 
         return {
-          stem: null,
+          // 题干必须带数字、放在最前面 —— 否则孩子一上来就看到"① 25 × 4 = ?"，
+          // 摸不着头脑：这是哪道题的一步？阶梯是拆解，不是替代原题。
+          stem: a + ' × ' + b + ' = ?',
           steps: [
             stepCore(aCore, bCore, core),
             stepZeroCount(totalZeros, a, b, aZeros, bZeros, rng),
@@ -258,7 +260,7 @@
         var answer = a * b;
 
         return {
-          stem: null,
+          stem: a + ' × ' + b + ' = ?',
           steps: [
             {
               id: 'core',
@@ -317,7 +319,7 @@
         var answer = a * b;
 
         return {
-          stem: null,
+          stem: a + ' × ' + b + ' = ?',
           steps: [
             {
               id: 'part1',
@@ -525,7 +527,7 @@
         };
 
         return {
-          stem: '把下面的数改写成用「' + unitName + '」作单位的数。',
+          stem: '把 ' + raw + ' 改写成用「' + unitName + '」作单位的数。',
           steps: [dropStep, finalStep],
           facts: {
             kind: 'rewrite', raw: raw, k: k, dropZeros: dropZeros,
@@ -623,7 +625,7 @@
         };
 
         return {
-          stem: '省略' + unitName + '位后面的尾数，求近似数。',
+          stem: '把 ' + n + ' 省略' + unitName + '位后面的尾数，求近似数。',
           steps: [lookStep, dirStep, finalStep],
           facts: {
             kind: 'approx', n: n, w: w, lookDigit: d, answer: answer,

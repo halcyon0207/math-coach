@@ -204,9 +204,14 @@
     return '';
   }
 
-  function buildSession(state, rng, count) {
+  function buildSession(state, rng, count, unitFilter) {
     count = count || QUESTIONS_PER_SESSION;
-    var kps = Knowledge.implemented();
+    // 按单元出题：只在这个单元的知识点里组卷。
+    // 传了不存在的单元名时别让整场崩掉，退回全部。
+    var kps = Knowledge.implemented().filter(function (k) {
+      return !unitFilter || unitFilter === 'all' || k.unit === unitFilter;
+    });
+    if (!kps.length) kps = Knowledge.implemented();
     var pool = Templates.TEMPLATES.filter(function (t) {
       return kps.some(function (k) { return k.id === t.kp; });
     });

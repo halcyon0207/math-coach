@@ -149,7 +149,24 @@ html, body {
   padding: 3px 10px;
   margin-bottom: 10px;
 }
-.stem { font-size: 17px; font-weight: 600; margin-bottom: 12px; line-height: 1.5; }
+.stem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.stem-label {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
 
 .steps { list-style: none; margin: 0; padding: 0; }
 .step {
@@ -361,3 +378,87 @@ html, body {
 }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ==================== 作答输入：直接用系统输入法 ==================== */
+/* 自绘数字键盘已经去掉：手机上点输入框弹系统输入法，电脑上直接敲物理键盘。 */
+.answer-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+.answer-input::placeholder {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.answer-input:focus { outline: none; border-color: var(--primary); background: var(--card); }
+
+/* ==================== 画笔（手指直接在题目上画）==================== */
+.card-q { position: relative; }
+.q-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  touch-action: none;   /* 手指在题目上画的时候，别把页面一起带着滚 */
+  z-index: 2;
+}
+.q-canvas.on { display: block; }
+
+.q-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.btn-sm { padding: 7px 13px; font-size: 14px; border-radius: 999px; }
+.pen-tip { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+/* ==================== 数位标尺 ==================== */
+/* 万以上的数，把每一位和它的数位摊开，并按"每 4 位一级"断开 ——
+   断开的位置就是「四位一截」的答案，不用再抄到纸上数。 */
+.ruler-card {
+  margin-top: 12px;
+  padding: 14px 10px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.ruler { display: flex; flex-wrap: wrap; align-items: flex-end; }
+.rcell { display: flex; flex-direction: column; align-items: center; min-width: 26px; }
+.rdigit { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rdigit.rmark { color: var(--warn); }
+.rname { font-style: normal; font-size: 11px; line-height: 1.2; color: var(--muted); }
+.rcut {
+  width: 3px;
+  align-self: stretch;
+  margin: 0 5px;
+  background: var(--line);
+  border-radius: 2px;
+}
+.ruler-tip { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+/* ==================== 单元选择 / 分组 ==================== */
+.unit-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.unit-btn {
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+}
+.unit-btn.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+.unit-block { margin-top: 14px; }
+.unit-block:first-child { margin-top: 0; }
+.unit-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }

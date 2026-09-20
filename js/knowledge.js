@@ -183,6 +183,21 @@
     byId: function (id) { return byId[id] || null; },
     implemented: function () {
       return KNOWLEDGE.filter(function (k) { return k.implemented; });
+    },
+    // 已实现知识点涉及的单元，按登记顺序返回。
+    // "按单元出题"和首页按单元分组，清单都从这里拿，不另写一份。
+    units: function () {
+      var seen = {}, out = [];
+      KNOWLEDGE.forEach(function (k) {
+        if (!k.implemented || seen[k.unit]) return;
+        seen[k.unit] = 1;
+        out.push(k.unit);
+      });
+      return out;
+    },
+    // '第一单元　万以上数的认识' -> '第一单元'（按钮上放不下全名）
+    shortUnit: function (u) {
+      return String(u || '').split(/\s+/)[0] || String(u || '');
     }
   };
 });

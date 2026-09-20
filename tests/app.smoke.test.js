@@ -289,6 +289,47 @@ test('方法徽章跟着题型走，并且把方法的步骤显示出来', () =>
   assert.ok(html.includes('mchip'), '方法的三个步骤应当显示在题目上，而不是只给一个名字');
 });
 
+test('看题区有画笔开关，打开后能清掉笔迹', () => {
+  const app = boot();
+  app.click('start');
+  assert.ok(app.html().includes('data-act="pen"'), '题目区应当有画笔开关');
+
+  app.click('pen');
+  const on = app.html();
+  assert.ok(on.includes('q-canvas on'), '打开画笔后画布应当显示出来');
+  assert.ok(on.includes('data-act="pen-clear"'), '打开画笔后应当能清掉笔迹');
+});
+
+test('万以上的题能直接看数位，不用抄到纸上数', () => {
+  const app = boot();
+  app.click('start');
+
+  // 组卷保证每个知识点都至少出现一次，所以一定能走到第一单元的题
+  let iter = 0;
+  let seen = false;
+  while (iter++ < 200) {
+    const html = app.html();
+    if (html.includes(RESULT_MARK)) break;
+
+    if (html.includes('data-act="ruler"')) {
+      seen = true;
+      app.click('ruler');
+      const withRuler = app.html();
+      assert.ok(withRuler.includes('class="ruler"'), '点了「看看数位」应当显示数位标尺');
+      assert.ok(/class="rname"/.test(withRuler), '数位标尺应当标出每一位的数位名称');
+      break;
+    }
+
+    if (html.includes('data-act="next"')) { app.click('next'); continue; }
+    const opt = html.match(FIRST_OPTION);
+    if (opt) app.click('opt', { 'data-v': opt[1] });
+    else app.key('1');
+    app.click('submit');
+  }
+
+  assert.ok(seen, '一场练习里应当出现第一单元（改写 / 求近似数）的题');
+});
+
 /* ==================== 电脑键盘 ==================== */
 
 // 把前面的选择题答完，走到一道填空题上
@@ -370,6 +411,54 @@ test('焦点停在按钮上时，回车交给浏览器处理，避免重复提�
   app.sandbox.document.activeElement = { tagName: 'BUTTON' };
   assert.strictEqual(app.key('Enter'), false,
     '焦点在按钮上时不应该拦截回车，否则会提交两次');
+});
+
+/* ==================== 单元 / 家长报告 ==================== */
+
+test('首页能选单元，选了第一单元就只出第一单元的题', () => {
+  const app = boot();
+  assert.ok(app.html().includes('data-act="unit"'), '首页应当能选单元');
+
+  // 先随便做一场，让"没练过的知识点优先"那条规则不再干扰这次验证
+  app.click('start');
+  playThrough(app);
+  app.click('home');
+
+  // 先随便做一场，让"没练过的知识点优先"那条规则不再干扰这次验证
+  app.click('unit', { u: '第一单元　万以上数的认识' });
+  const homeHtml = app.html();
+  assert.ok(homeHtml.includes('本次范围：第一单元'), '选单元后应当提示本次范围');
+  assert.ok(homeHtml.includes('四位一截') && homeHtml.includes('看下一位'),
+    '选第一单元应当显示这个单元的方法');
+  assert.ok(!homeHtml.includes('盯住 0'),
+    '选第一单元不应当把第四单元的方法也列出来');
+
+  app.click('start');
+  playThrough(app);
+
+  const state = JSON.parse(app.sandbox.localStorage.getItem('math-coach-v1'));
+  const last = state.history.slice(-10);
+  assert.strictEqual(last.length, 10, '第二场应当有 10 道题');
+  last.forEach(h => {
+    assert.strictEqual(h.kpId.indexOf('M4A-01'), 0,
+      `选了第一单元，却出了 ${h.kpId}`);
+  });
+});
+
+test('家长报告能看到时间、正确率、每题用时和错点', () => {
+  const app = boot();
+  app.click('start');
+  playThrough(app);
+  app.click('home');
+  app.click('parent');
+
+  const html = app.html();
+  assert.ok(html.includes('家长报告'), '应当进入家长报告页');
+  assert.ok(html.includes('总览'), '应当有总览');
+  assert.ok(html.includes('10 题对'), '应当有这一场的正确数');
+  assert.ok(html.includes('每题约'), '应当有效率（每题用时）');
+  assert.ok(html.includes('错误点都在哪'), '应当有错点统计');
+  assert.ok(html.includes('导出全部记录'), '应当能导出记录');
 });
 
 /* ==================== 其他 ==================== */
