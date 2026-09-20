@@ -1,0 +1,11 @@
+{
+  "name": "数学小教练 · 四年级上册",
+  "short_name": "数学小教练",
+  "description": "错题驱动的个性化练习：程序出题、程序判分、错因自证、掌握度可视化。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f8",
+  "theme_color": "#3b6ef0",
+  "lang": "zh-CN"
+}
