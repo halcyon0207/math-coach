@@ -367,6 +367,46 @@ html, body {
 }
 
 /* ---- 鼠标悬停（只在真的有鼠标时才加）---- */
+/* ==================== 手机：作答区钉在屏幕底部 ==================== */
+/*
+ * 手机上题目和答案是上下两栏，题目一长，输入框和「确认」就被推到屏幕外，
+ * 得滑下去才够得着 —— 每道题滑两次，十几道题下来很烦。
+ *
+ * 所以手机上把整个作答区固定在底部：题目随便滚，
+ * 输入和按钮永远在屏幕最下面伸手就能点到。
+ */
+@media (max-width: 1039px) {
+  .view-practice { padding-bottom: 240px; }   /* 给底部这条留位置，别挡住题目 */
+
+  .col-side {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    background: var(--card);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 16px rgba(16, 24, 40, .08);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    /* 画笔、数位标尺也在这条里，展开后可能很高 ——
+       限个高，超出就在条内部滚，别把整个屏幕都占了 */
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+  .q-tools { margin-top: 8px; }
+  .ruler-card { margin-top: 8px; }
+
+  /* 选项排成一行，别竖着占掉半屏 */
+  .workzone .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .workzone .opt { padding: 10px 6px; font-size: 15px; }
+
+  /* 手机上把题目压短，争取一屏放得下题干 + 输入 + 按钮 */
+  .method-bar .mchip { display: none; }   /* 方法的三个步骤收起来，只留徽章上的名字 */
+  .step.locked { display: none; }          /* 还没轮到的步骤先不占地方（进度在作答区写着） */
+  .wz-kbd-hint { display: none; }          /* 触屏上没有物理键盘这条路 */
+  .workzone { padding: 12px 12px 14px; }
+  .wz-prompt { font-size: 19px; }
+}
 @media (hover: hover) {
   .btn-primary:hover { filter: brightness(1.07); }
   .btn-soft:hover { background: var(--primary); color: var(--primary-ink); }

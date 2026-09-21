@@ -368,12 +368,14 @@
       (q.stem ? '<div class="stem"><span class="stem-label">题目</span>' + esc(q.stem) + '</div>' : '') +
       '<ol class="steps">' + stepsHtml + '</ol>' +
       '</div>' +
-      toolsHtml +
-      rulerPanel +
       '</div>' +
 
       '<div class="col-side">' +
       '<div class="workzone">' + workzone + '</div>' +
+      // 画笔和数位的开关必须放在作答区里：手机上作答区是钉在屏幕底部的，
+      // 放在题目那一栏的话，它就正好被这条挡住 —— 看得见却点不到。
+      toolsHtml +
+      rulerPanel +
       feedback +
       actions +
       '</div>' +
@@ -951,8 +953,19 @@
     root.innerHTML = '<div class="view view-' + app.view + '">' + html + '</div>';
     // 画布是新造出来的，尺寸要重算、笔迹要照着再画一遍
     if (app.view === 'practice') attachCanvas();
-    window.scrollTo(0, 0);
+
+    // 只在"换了一道题 / 换了一个页面"时才回到顶部。
+    //
+    // 以前每次渲染都 scrollTo(0, 0)：提交之后页面会突然弹回题目最上面，
+    // 手机上还得重新往下滑才够得着「确认」，滑来滑去就是这么来的。
+    var key = app.view + '#' + (app.session ? app.cursor : '-');
+    if (key !== lastScrollKey) {
+      lastScrollKey = key;
+      window.scrollTo(0, 0);
+    }
   }
+
+  var lastScrollKey = '';
 
   // 在输入框里打字：只更新状态，不重新渲染。
   // 一渲染整块 innerHTML 就被换掉，输入框失去焦点、光标跳走，
