@@ -30,9 +30,10 @@ test('每个模板生成 400 次，最终答案都等于程序算出的乘积', 
 
       assert.ok(final, `${tpl.id} 缺少最终步骤`);
 
-      if (f.kind === 'rewrite' || f.kind === 'approx') {
-        // 第一单元（改写 / 求近似数）不是乘法题，没有"两个因数"。
+      if (f.expect !== undefined) {
+        // 第一单元（改写 / 求近似数）、第二单元（角）都不是乘法题，没有"两个因数"。
         // 答案同样必须由程序算出，只是算的规则不同 —— 规则写在 facts.expect 里。
+        // 用 expect 判断而不是枚举 kind：以后再加别的题型，这里不用跟着改。
         assert.strictEqual(final.answer, f.expect,
           `${tpl.id} 答案 ${final.answer} 与程序按规则算出的 ${f.expect} 不一致`);
       } else if (f.isEstimate) {
@@ -287,15 +288,59 @@ test('每道题都必须有带数字的题干，不能让孩子直接面对孤�
       const q = Engine.buildQuestion(tpl, rngFor(ti * 51 + i + 1), 2);
       assert.ok(q.stem && q.stem.length > 3, `${tpl.id} 没有题干`);
       const f = q.facts;
-      if (f.kind === 'rewrite') {
+      const k = f.kind;
+      if (k === 'rewrite') {
         assert.ok(q.stem.includes(String(f.raw)), `${tpl.id} 题干里没有原数：${q.stem}`);
-      } else if (f.kind === 'approx') {
+      } else if (k === 'approx') {
         assert.ok(q.stem.includes(String(f.n)), `${tpl.id} 题干里没有原数：${q.stem}`);
+      } else if (k === 'angle-class') {
+        // 看图题的数字在图上，不在题干里 —— 那就必须真的画出了图，
+        // 否则孩子对着一句"看下面的角"什么也看不到。
+        if (q.figure) {
+          assert.strictEqual(q.figure.type, 'angle', `${tpl.id} 图的类型不对`);
+          assert.ok(q.figure.deg > 0, `${tpl.id} 图里没有角度`);
+        } else {
+          assert.ok(q.stem.includes(String(f.deg)), `${tpl.id} 题干里没有角的度数：${q.stem}`);
+        }
+      } else if (k === 'angle-edge') {
+        assert.ok(q.stem.includes(String(f.deg)), `${tpl.id} 题干里没有角的度数：${q.stem}`);
+      } else if (k === 'angle-split') {
+        assert.ok(q.stem.includes(String(f.x)), `${tpl.id} 题干里没有已知的那个角：${q.stem}`);
+      } else if (k === 'angle-relation' || k === 'triangle-make') {
+        assert.ok(/三角尺|周角|平角|直角/.test(q.stem), `${tpl.id} 题干里没有角的信息：${q.stem}`);
       } else {
         assert.ok(q.stem.includes(String(f.a)) && q.stem.includes(String(f.b)),
           `${tpl.id} 题干里没有两个因数：${q.stem}`);
       }
     }
+  });
+});
+
+test('角的分类：180° 被选成钝角时要认出是"把平角当钝角"', () => {
+  // 教材同步资料里"易错点 TOP 8"第 3 条就是"认为 180° 是钝角"。
+  // 这类题的错因要看"正确答案 + 选了什么"这一对，所以得逐选项验。
+  const tpl = Templates.TEMPLATES.find(t => t.id === 'T-0202-A');
+  const seen = { FLAT_AS_OBTUSE: 0, TYPE_REVERSE: 0, RIGHT_CONFUSE: 0 };
+  let saw180 = false;
+
+  for (let i = 0; i < 2000; i++) {
+    const q = Engine.buildQuestion(tpl, rngFor(i + 1), 2);
+    if (q.facts.deg === 180) saw180 = true;
+    q.allSteps.forEach(s => {
+      if (s.type !== 'choice') return;
+      s.options.forEach(o => {
+        if (o.value === s.answer) return;
+        const g = Engine.gradeStep(s, o.value);
+        assert.strictEqual(g.isCorrect, false);
+        assert.ok(g.errorTag && g.errorTag !== 'OTHER', `选项「${o.label}」没有归因`);
+        if (seen[g.errorTag] !== undefined) seen[g.errorTag]++;
+      });
+    });
+  }
+
+  assert.ok(saw180, '应当能出到 180°（平角）');
+  Object.keys(seen).forEach(k => {
+    assert.ok(seen[k] > 0, `错因 ${k} 从未被触发，说明干扰项没覆盖这条错误路径`);
   });
 });
 
@@ -536,18 +581,28 @@ test('组卷：练过的知识点里，掌握度低的会被优先安排', () =>
   assert.ok(counts['M4A-04-04'] >= 3, `最弱的知识点太少了：${JSON.stringify(counts)}`);
 });
 
-test('组卷：每个知识点在一场练习里都至少出现一次（新的不能被饿死）', () => {
-  // 之前"薄弱"和"抗遗忘"两档会把 10 个名额占满，
-  // 一次都没练过的知识点（当时是"乘法估算"）一整场都没出现过。
+test('组卷：连着几场下来，每个知识点都会被练到（新的不能被饿死）', () => {
+  // 注意这里改过：原来是"每一场都必须覆盖所有知识点"。
+  // 知识点只有 3 个时那句话成立；现在有 8 个，而一场只有 10 道题、
+  // 中间能自由分配的只有 7 个位置 —— 单场强求全覆盖，
+  // 就只能牺牲"薄弱优先"去凑名额，那是本末倒置。
+  //
+  // 真正要防的是"某个知识点一直练不到"，所以看连着几场。
   const state = freshState();
-  for (let s = 0; s < 40; s++) {
+  const seen = new Set();
+
+  for (let s = 0; s < 4; s++) {
     const sess = Engine.buildSession(state, rngFor(s * 31 + 3));
-    const seen = new Set(sess.questions.map(q => q.kpId));
-    Knowledge.implemented().forEach(k => {
-      assert.ok(seen.has(k.id),
-        `第 ${s + 1} 场里「${k.name}」一次都没出现`);
+    sess.questions.forEach(q => {
+      seen.add(q.kpId);
+      // 让下一场知道这个知识点已经练过，否则每场都从"全都没练过"开始算
+      state.stats[q.kpId] = { attempts: 1, corrects: 1, wrongs: 0, lastPracticedAt: Date.now() };
     });
   }
+
+  Knowledge.implemented().forEach(k => {
+    assert.ok(seen.has(k.id), `连着 4 场都没出现「${k.name}」`);
+  });
 });
 
 test('做完一整场之后，支架不会整场消失（这是"题目突然没步骤了"的回归测试）', () => {

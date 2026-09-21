@@ -95,8 +95,24 @@ function boot() {
 const ACTIVE_STEP = /<div class="wz-prompt">([^<]+)<\/div>/;
 const FIRST_OPTION = /data-act="opt" data-v="([^"]+)"/;
 
+// 能照题干算出答案的填空题，返回答案；算不出就返回 null（这类题后面不断言对错）。
+//
+// 早先这里只认 "a × b = ?" 一种，加了改写、求近似数、三角尺拼角之后就不够用了：
+// 那些题会被填成 '1' 判错，看起来像"判分坏了"，其实是测试自己算不出答案。
+function computableAnswer(p) {
+  let m;
+  if ((m = p.match(/^(\d+)\s*×\s*(\d+)\s*=\s*\?$/))) return String(Number(m[1]) * Number(m[2]));
+  if ((m = p.match(/^(\d+)\s*=\s*（　）万$/))) return String(Math.round(Number(m[1]) / 10000));
+  if ((m = p.match(/^(\d+)\s*=\s*（　）亿$/))) return String(Math.round(Number(m[1]) / 1e8));
+  if ((m = p.match(/^(\d+)\s*≈\s*（　）万$/))) return String(Math.round(Number(m[1]) / 10000));
+  if ((m = p.match(/^(\d+)\s*≈\s*（　）亿$/))) return String(Math.round(Number(m[1]) / 1e8));
+  if ((m = p.match(/^(\d+)°\s*\+\s*(\d+)°\s*=\s*\?$/))) return String(Number(m[1]) + Number(m[2]));
+  if ((m = p.match(/^(\d+)°\s*−\s*(\d+)°\s*=\s*\?$/))) return String(Number(m[1]) - Number(m[2]));
+  return null;
+}
+
 // 把一场练习从头开到尾。
-// 填空题照题干里的算式算出正确答案；选择题点第一个选项
+// 填空题照题干算出正确答案；选择题点第一个选项
 //（故意点错，顺便把"答错 → 提示 → 揭示答案"那条路径也走一遍）。
 function playThrough(app) {
   let iter = 0;
@@ -114,8 +130,7 @@ function playThrough(app) {
       app.click('opt', { 'data-v': opt[1] });
     } else {
       // 电脑网页版走键盘输入这条路（屏幕键盘在桌面端是隐藏的）
-      const nums = m[1].match(/^(\d+)\s*×\s*(\d+)\s*=\s*\?/);
-      const value = nums ? String(Number(nums[1]) * Number(nums[2])) : '1';
+      const value = computableAnswer(m[1]) || '1';
       value.split('').forEach(ch => app.key(ch));
     }
     app.click('submit');
@@ -182,9 +197,16 @@ test('做完一场之后，数据都落到本地存储里了', () => {
   assert.ok(state.history.every(h => h.qid && h.kpId && typeof h.isCorrect === 'boolean'),
     '每条记录都要有题目标识、知识点和正误');
 
-  // 填空题是照题干算出来的，所以答对率不应该太低
-  const correct = state.history.filter(h => h.isCorrect).length;
-  assert.ok(correct >= 5, `答对题数偏少（${correct}/10），可能判分出了问题`);
+  // 填空题是照题干算出来的，所以填空题必须全对 —— 判分要是坏了，这里先炸。
+  //
+  // 不能用"总共对几题"来判断：选择题是故意点第一个选项（大多是错的），
+  // 好把"答错 → 提示 → 揭示答案"那条路走一遍。第二单元选择题多了以后，
+  // 总正确率自然降下来，但那不是判分坏了。
+  const checkable = state.history.filter(h => computableAnswer(h.stem || '') !== null);
+  assert.ok(checkable.length > 0, '一场练习里应当有能照题干算出答案的填空题');
+  checkable.forEach(h => {
+    assert.ok(h.isCorrect, `「${h.stem}」照题干算出的答案应当判对，实际判错了`);
+  });
 
   Object.keys(state.stats).forEach(kpId => {
     assert.ok(state.stats[kpId].attempts > 0);
@@ -285,7 +307,8 @@ test('方法徽章跟着题型走，并且把方法的步骤显示出来', () =>
   const html = app.html();
   // 名单要跟着 knowledge.js 里的 METHODS 一起更新：第一题出到哪个题型是随机的，
   // 只要徽章上的方法名不在这个名单里，这条就会偶发失败（看起来像界面的 bug，其实是漏改名）。
-  assert.ok(/方法 · (盯住 0|拆开看|先估后算|四位一截|看下一位)/.test(html), '题目上应当有方法徽章');
+  assert.ok(/方法 · (盯住 0|拆开看|先估后算|四位一截|看下一位|看开口|找整角)/.test(html),
+    '题目上应当有方法徽章');
   assert.ok(html.includes('mchip'), '方法的三个步骤应当显示在题目上，而不是只给一个名字');
 });
 

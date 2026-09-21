@@ -148,6 +148,8 @@
       difficulty: template.difficulty,
       scaffoldLevel: scaffoldLevel,
       stem: data.stem,
+      // 插图（角的图形）。题目数据里带着，界面照着画出来。
+      figure: data.figure || null,
       steps: active,
       allSteps: steps,
       finalStepId: finalStep.id,

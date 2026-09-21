@@ -366,6 +366,7 @@
       '<canvas id="qCanvas" class="q-canvas' + (app.penOn ? ' on' : '') + '"></canvas>' +
       methodBar +
       (q.stem ? '<div class="stem"><span class="stem-label">题目</span>' + esc(q.stem) + '</div>' : '') +
+      (q.figure ? angleFigureHtml(q.figure) : '') +
       '<ol class="steps">' + stepsHtml + '</ol>' +
       '</div>' +
       '</div>' +
@@ -430,6 +431,31 @@
 
     return '<div class="ruler">' + cells + '</div>' +
       '<div class="ruler-tip">' + esc(tip) + '</div>';
+  }
+
+  /* ============================== 角的插图 ============================== */
+  // 「看图判断是什么角」这类题必须有个图，纯文字说不清"张开得多大"。
+  // 用 SVG 画，不引任何库 —— 加载快，离线也能用，缩放不糊。
+  function angleFigureHtml(fig) {
+    if (!fig || fig.type !== 'angle') return '';
+    var deg = fig.deg;
+    var W = 180, H = 124, ox = 26, oy = 104, R = 92;
+    var rad = deg * Math.PI / 180;
+
+    function pt(r) {
+      return [(ox + r * Math.cos(rad)).toFixed(1), (oy - r * Math.sin(rad)).toFixed(1)];
+    }
+    var tip = pt(R), arcEnd = pt(30);
+    var large = deg > 180 ? 1 : 0;
+
+    return '<svg class="angle-fig" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+      'aria-label="一个 ' + deg + ' 度的角">' +
+      '<line class="af-side" x1="' + ox + '" y1="' + oy + '" x2="' + (ox + R) + '" y2="' + oy + '"/>' +
+      '<line class="af-side" x1="' + ox + '" y1="' + oy + '" x2="' + tip[0] + '" y2="' + tip[1] + '"/>' +
+      '<path class="af-arc" d="M' + (ox + 30) + ' ' + oy +
+      ' A30 30 0 ' + large + ' 0 ' + arcEnd[0] + ' ' + arcEnd[1] + '"/>' +
+      '<circle class="af-dot" cx="' + ox + '" cy="' + oy + '" r="3.5"/>' +
+      '</svg>';
   }
 
   /* ============================== 画笔 ============================== */

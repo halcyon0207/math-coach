@@ -482,6 +482,12 @@ html, body {
 }
 .ruler-tip { margin-top: 10px; font-size: 13px; color: var(--muted); }
 
+/* ==================== 角的插图 ==================== */
+.angle-fig { display: block; width: 100%; max-width: 240px; height: auto; margin: 2px 0 14px; }
+.af-side { stroke: var(--primary); stroke-width: 3; stroke-linecap: round; }
+.af-arc { stroke: var(--warn); stroke-width: 2.5; fill: none; }
+.af-dot { fill: var(--primary); }
+
 /* ==================== 单元选择 / 分组 ==================== */
 .unit-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .unit-btn {

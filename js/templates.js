@@ -49,6 +49,21 @@
     ROUND_DIR: { label: '该舍的进了、该进的舍了', advice: '看的那一位是 0~4 就舍去，是 5~9 才进 1。' },
     WRONG_DIGIT: { label: '看的数位不对', advice: '省略哪一位后面的尾数，就看紧挨着它右边那一位，不是看更后面的。' },
     NOT_IN_UNIT: { label: '没有用"万"或"亿"作单位', advice: '题目问的是多少万（亿），答案只填"万"前面的那个数就行。' },
+    // ---- 第二单元 角的度量（课本 P30—38）----
+    // 每一条都对着同步资料《单元知识要点》里的"易错点 TOP 8"，不是拍脑袋想的
+    FLAT_AS_OBTUSE: { label: '把平角当成了钝角', advice: '180° 是平角。钝角必须比 90° 大、又比 180° 小，180° 正好卡在边上，不属于钝角。' },
+    OBTUSE_AS_FLAT: { label: '把钝角当成了平角', advice: '只有正好 180° 才是平角。比 180° 小的（哪怕 179°）都还是钝角。' },
+    TYPE_REVERSE: { label: '锐角和钝角搞反了', advice: '比直角小的是锐角，比直角大又不到 180° 的是钝角 —— 先和直角比一比就不会反。' },
+    RIGHT_CONFUSE: { label: '一律拿直角去套', advice: '只有方方正正、正好 90° 的才是直角。先比一比大小，再定名字。' },
+    ROUND_FLAT_MIX: { label: '周角和平角搞混了', advice: '转半周是平角 180°，转一整圈才是周角 360°。' },
+    ROUND_MISUSE: { label: '周角用错了', advice: '周角是 360°，是转了一整圈。一般只有说"转一圈"的时候才用得上。' },
+    CMP_RIGHT_WRONG: { label: '和直角比错了', advice: '直角是 90°。把这个角和 90° 比一比：小、正好、还是大。' },
+    WHOLE_ANGLE_WRONG: { label: '整角认错了', advice: '平角是 180°，周角是 360°。先看清楚这个整角到底是哪一个。' },
+    ADD_NOT_SUB: { label: '该减的做成加法了', advice: '已知其中一块，求剩下的那一块 —— 要用整角减去已知的，不是加。' },
+    SUB_CALC: { label: '减法算错了', advice: '整角减去已知角这一步算错了，再算一遍，可以拆成整十数来减。' },
+    RELATION_WRONG: { label: '倍数关系记错了', advice: '1 周角 = 2 平角 = 4 直角（360 = 2×180 = 4×90）。记住这一串就够。' },
+    EDGE_LENGTH_CONFUSE: { label: '以为边画得越长角就越大', advice: '角的大小只和两条边张开的程度有关，和边画得长不长没有关系。' },
+    CANNOT_MAKE: { label: '这个角用一副三角尺拼不出来', advice: '一副三角尺只有 30°、45°、60°、90°，把它们相加或相减，能拼出的角是固定的几个。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -636,6 +651,333 @@
     };
   }
 
+  /* ==================== 第二单元 角的度量（课本 P30—38）==================== */
+  var ANGLE_TYPES = [
+    { value: 1, name: '锐角' },
+    { value: 2, name: '直角' },
+    { value: 3, name: '钝角' },
+    { value: 4, name: '平角' },
+    { value: 5, name: '周角' }
+  ];
+
+  function typeOfDeg(deg) {
+    if (deg < 90) return 1;
+    if (deg === 90) return 2;
+    if (deg < 180) return 3;
+    if (deg === 180) return 4;
+    return 5;
+  }
+
+  function angleTypeName(v) {
+    var t = ANGLE_TYPES.filter(function (x) { return x.value === v; })[0];
+    return t ? t.name : '';
+  }
+
+  // 选错类型的错因要看"正确答案 + 选了什么"这一对 —— 单看一个选项说不出他错在哪。
+  // 这跟乘法那边的标签不一样：那边一个错数对应一种错法，这边得比对两个。
+  function angleTypeErrorTag(chosen, correct) {
+    if (chosen === 2) return 'RIGHT_CONFUSE';                      // 一律拿直角去套
+    if (correct === 4 && chosen === 3) return 'FLAT_AS_OBTUSE';     // 180° 当成钝角（教材易错点 3）
+    if (correct === 3 && chosen === 4) return 'OBTUSE_AS_FLAT';
+    if (correct === 5) return 'ROUND_FLAT_MIX';                     // 周角认错
+    if (chosen === 5) return 'ROUND_MISUSE';                        // 乱用周角
+    return 'TYPE_REVERSE';
+  }
+
+  // 辅助步骤：先和直角比一比。判断类型最容易错的就是"没比就下结论"。
+  function stepCompareRight(deg, rng) {
+    var right = deg < 90 ? 1 : (deg === 90 ? 2 : 3);
+    var opts = [
+      { value: 1, label: '比直角小' },
+      { value: 2, label: '正好是直角' },
+      { value: 3, label: '比直角大' }
+    ].map(function (o) {
+      return { value: o.value, label: o.label, tag: o.value === right ? null : 'CMP_RIGHT_WRONG' };
+    });
+    return {
+      id: 'cmp',
+      tier: 1,
+      type: 'choice',
+      prompt: deg + '° 这个角和直角（90°）比一比，谁大？',
+      answer: right,
+      options: shuffle(rng, opts),
+      hint: '直角是 90°，方方正正的。先比大小，再定名字。',
+      teach: [deg + '° ' + (right === 1 ? '比 90° 小' : (right === 2 ? '正好是 90°' : '比 90° 大'))]
+    };
+  }
+
+  // 族 G：角的分类（给度数 / 看图）
+  function familyAngleClassify(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var deg = spec.pickDeg(rng);
+        var correct = typeOfDeg(deg);
+        var options = ANGLE_TYPES.map(function (t) {
+          return {
+            value: t.value,
+            label: t.name,
+            tag: t.value === correct ? null : angleTypeErrorTag(t.value, correct)
+          };
+        });
+
+        return {
+          stem: spec.figure
+            ? '看下面的角，判断它是哪一类角。'
+            : '判断 ' + deg + '° 这个角是哪一类角。',
+          figure: spec.figure ? { type: 'angle', deg: deg } : null,
+          steps: [
+            stepCompareRight(deg, rng),
+            {
+              id: 'type',
+              tier: 0,
+              type: 'choice',
+              prompt: spec.figure ? '这个角是（　）' : deg + '° 的角是（　）',
+              answer: correct,
+              options: shuffle(rng, options),
+              hint: '先和直角（90°）比，再看它到没到 180°，最后对上名字。',
+              teach: [
+                '锐角 < 90°，直角 = 90°，钝角 90°~180°，平角 = 180°，周角 = 360°',
+                deg + '° 是' + angleTypeName(correct)
+              ]
+            }
+          ],
+          facts: { kind: 'angle-class', deg: deg, expect: correct }
+        };
+      }
+    };
+  }
+
+  // 族 H：角的大小与边的长短无关（教材 P33，易错点 2）
+  function familyAngleEdge(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var deg = pickInt(rng, 30, 130);
+        return {
+          stem: '∠1 的两条边画得很长，∠2 的两条边画得很短，但它们张开的大小一样，都是 ' + deg + '°。',
+          steps: [
+            {
+              id: 'idea',
+              tier: 1,
+              type: 'choice',
+              prompt: '角的大小和两条边画得长不长，有关系吗？',
+              answer: 2,
+              options: shuffle(rng, [
+                { value: 1, label: '有，边画得越长角越大', tag: 'EDGE_LENGTH_CONFUSE' },
+                { value: 2, label: '没有，只看张开的大小', tag: null }
+              ]),
+              hint: '想想活动角：把边往外延长，张开的大小变了吗？',
+              teach: ['角的大小只和两条边张开的大小有关，与边的长短无关']
+            },
+            {
+              id: 'cmp',
+              tier: 0,
+              type: 'choice',
+              prompt: '那么 ∠1 和 ∠2 比，哪个角大？',
+              answer: 3,
+              options: shuffle(rng, [
+                { value: 1, label: '∠1 大（它的边更长）', tag: 'EDGE_LENGTH_CONFUSE' },
+                { value: 2, label: '∠2 大', tag: 'EDGE_LENGTH_CONFUSE' },
+                { value: 3, label: '一样大', tag: null }
+              ]),
+              hint: '两个角张开的大小都是 ' + deg + '°。',
+              teach: ['∠1 和 ∠2 都是 ' + deg + '°，张开得一样大，所以两个角一样大']
+            }
+          ],
+          facts: { kind: 'angle-edge', deg: deg, expect: 3 }
+        };
+      }
+    };
+  }
+
+  // 族 I：角的计算 —— 整角分成两块，已知一块求另一块
+  function familyAngleSplit(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var whole = spec.whole;                        // 180 或 360
+        var x = pickInt(rng, spec.xMin, spec.xMax);    // 已知的那一块
+        var rest = whole - x;
+        var other = whole === 180 ? 360 : 180;         // 最常认错的那个整角
+
+        return {
+          stem: '一个' + (whole === 180 ? '平角' : '周角') + '被分成两个角，其中一个是 ' + x + '°。',
+          steps: [
+            {
+              id: 'whole',
+              tier: 1,
+              type: 'choice',
+              prompt: (whole === 180 ? '平角' : '周角') + '是多少度？',
+              answer: whole,
+              options: shuffle(rng, [180, 360, 90].map(function (v) {
+                return { value: v, label: v + '°', tag: v === whole ? null : 'WHOLE_ANGLE_WRONG' };
+              })),
+              hint: '1 周角 = 2 平角 = 4 直角，直角是 90°。',
+              teach: [(whole === 180 ? '平角' : '周角') + '是 ' + whole + '°']
+            },
+            {
+              id: 'rest',
+              tier: 0,
+              type: 'number',
+              prompt: '另一个角是多少度？',
+              answer: rest,
+              distractors: dedupeDistractors(rest, [
+                { value: other - x, tag: 'WHOLE_ANGLE_WRONG' },      // 整角认错了
+                { value: whole + x, tag: 'ADD_NOT_SUB' },            // 该减做成加
+                { value: rest + pickIntFix(rest), tag: 'SUB_CALC' },
+                { value: Math.abs(rest - pickIntFix(rest)), tag: 'SUB_CALC' }
+              ]),
+              hint: '用整角 ' + whole + '° 减去已知的 ' + x + '°。',
+              teach: [
+                '① 整角是 ' + whole + '°',
+                '② ' + whole + ' − ' + x + ' = ' + rest,
+                '③ 另一个角是 ' + rest + '°'
+              ]
+            }
+          ],
+          facts: { kind: 'angle-split', whole: whole, x: x, rest: rest, expect: rest }
+        };
+      }
+    };
+  }
+
+  // 族 J：角的大小关系换算（1 周角 = 2 平角 = 4 直角，教材 P32）
+  var ANGLE_UNITS = [
+    { name: '周角', deg: 360 },
+    { name: '平角', deg: 180 },
+    { name: '直角', deg: 90 }
+  ];
+
+  function familyAngleRelation(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var i = pickInt(rng, 0, 1);          // 大的那个：0 周角 / 1 平角
+        var j = pickInt(rng, i + 1, 2);      // 小的那个
+        var big = ANGLE_UNITS[i], small = ANGLE_UNITS[j];
+        var answer = big.deg / small.deg;
+
+        return {
+          stem: '角的大小关系：1 周角 = 2 平角 = 4 直角。',
+          steps: [
+            {
+              id: 'deg',
+              tier: 1,
+              type: 'choice',
+              prompt: '1 个' + big.name + '是多少度？',
+              answer: big.deg,
+              options: shuffle(rng, [360, 180, 90].map(function (v) {
+                return { value: v, label: v + '°', tag: v === big.deg ? null : 'WHOLE_ANGLE_WRONG' };
+              })),
+              hint: '直角 90°，平角是它的 2 倍，周角又是平角的 2 倍。',
+              teach: ['1 个' + big.name + ' = ' + big.deg + '°']
+            },
+            {
+              id: 'how',
+              tier: 0,
+              type: 'number',
+              prompt: '1 个' + big.name + ' = （　）个' + small.name,
+              answer: answer,
+              distractors: dedupeDistractors(answer, [
+                { value: answer - 1, tag: 'RELATION_WRONG' },
+                { value: answer + 1, tag: 'RELATION_WRONG' },
+                { value: answer * 2, tag: 'RELATION_WRONG' }
+              ]),
+              hint: big.deg + ' ÷ ' + small.deg + ' = ?',
+              teach: [
+                '① ' + big.name + ' = ' + big.deg + '°，' + small.name + ' = ' + small.deg + '°',
+                '② ' + big.deg + ' ÷ ' + small.deg + ' = ' + answer,
+                '③ 1 个' + big.name + ' = ' + answer + ' 个' + small.name
+              ]
+            }
+          ],
+          facts: { kind: 'angle-relation', big: big.name, small: small.name, expect: answer }
+        };
+      }
+    };
+  }
+
+  // 族 K：三角尺拼角（教材 P37 例题）
+  var MAKEABLE = [
+    { deg: 75, expr: '30° + 45°', a: 30, b: 45, op: '+' },
+    { deg: 105, expr: '60° + 45°', a: 60, b: 45, op: '+' },
+    { deg: 120, expr: '90° + 30°', a: 90, b: 30, op: '+' },
+    { deg: 135, expr: '90° + 45°', a: 90, b: 45, op: '+' },
+    { deg: 150, expr: '60° + 90°', a: 60, b: 90, op: '+' },
+    { deg: 180, expr: '90° + 90°', a: 90, b: 90, op: '+' },
+    { deg: 15, expr: '45° − 30°', a: 45, b: 30, op: '-' }
+  ];
+  // 这几个是拼不出来的，刻意挑了"看着很像"的：100、115、130 常被误以为能拼
+  var UNMAKEABLE = [20, 50, 65, 80, 100, 115, 130, 145, 160, 170];
+
+  function familyTriangleMake(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function (rng) {
+        var m = MAKEABLE[pickInt(rng, 0, MAKEABLE.length - 1)];
+        var deg = m.deg;
+        var part = m.op === '+' ? m.a + m.b : m.a - m.b;
+        var wrong = shuffle(rng, UNMAKEABLE).slice(0, 3);
+
+        return {
+          stem: '一副三角尺上的角是 30°、45°、60°、90°。把它们拼在一起（相加或相减），能拼出哪些角？',
+          steps: [
+            {
+              id: 'part',
+              tier: 1,
+              type: 'number',
+              prompt: m.a + '° ' + (m.op === '+' ? '+' : '−') + ' ' + m.b + '° = ?',
+              answer: part,
+              distractors: dedupeDistractors(part, [
+                { value: m.a + m.b, tag: 'SUB_CALC' },
+                { value: Math.abs(m.a - m.b), tag: 'SUB_CALC' }
+              ]),
+              hint: '就是这两个角合在一起（或相差）是多少度。',
+              teach: [m.a + '° ' + (m.op === '+' ? '+' : '−') + ' ' + m.b + '° = ' + part + '°']
+            },
+            {
+              id: 'pick',
+              tier: 0,
+              type: 'choice',
+              prompt: '下面哪个角可以用一副三角尺拼出来？',
+              answer: deg,
+              options: shuffle(rng, [{ value: deg, label: deg + '°', tag: null }].concat(
+                wrong.map(function (v) { return { value: v, label: v + '°', tag: 'CANNOT_MAKE' }; })
+              )),
+              hint: '先把能拼的都列出来：30+45、60+45、90+30、90+45、60+90、90+90、45−30。',
+              teach: [
+                '一副三角尺能拼出：15°、75°、105°、120°、135°、150°、180°',
+                deg + '° = ' + m.expr + '，所以拼得出来'
+              ]
+            }
+          ],
+          facts: { kind: 'triangle-make', deg: deg, expect: deg }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -720,6 +1062,54 @@
       family: familyRound, id: 'T-0106-B', kp: 'M4A-01-06', difficulty: 0.62,
       shape: '省略亿位后面的尾数', method: 'M-LOOK-NEXT',
       unitName: '亿', unitPow: 100000000, lookName: '千万位', nextName: '百万位', wMin: 10, wMax: 99
+    },
+
+    // ---- 02-02 角的分类（课本 P32）----
+    {
+      family: familyAngleClassify, id: 'T-0202-A', kp: 'M4A-02-02', difficulty: 0.35,
+      shape: '给度数判断角的类型', method: 'M-ANGLE-TYPE',
+      // 度数池是刻意挑的：89 / 91 贴着直角，179 贴着平角，
+      // 180 最常被当成钝角，360 是唯一一个周角
+      pickDeg: function (rng) {
+        var pool = [30, 45, 60, 89, 90, 91, 100, 120, 150, 179, 180, 360];
+        return pool[pickInt(rng, 0, pool.length - 1)];
+      }
+    },
+    {
+      family: familyAngleClassify, id: 'T-0202-B', kp: 'M4A-02-02', difficulty: 0.40,
+      shape: '看图判断角的类型', method: 'M-ANGLE-TYPE',
+      figure: true,
+      // 画得出来的才放进看图题（周角两条边重合，画出来看不出，不放在这里）
+      pickDeg: function (rng) {
+        var pool = [25, 40, 65, 80, 90, 100, 115, 140, 165, 180];
+        return pool[pickInt(rng, 0, pool.length - 1)];
+      }
+    },
+    {
+      family: familyAngleEdge, id: 'T-0202-C', kp: 'M4A-02-02', difficulty: 0.30,
+      shape: '角的大小与边的长短无关', method: 'M-ANGLE-TYPE'
+    },
+
+    // ---- 02-03 角的计算（课本 P34）----
+    {
+      family: familyAngleSplit, id: 'T-0203-A', kp: 'M4A-02-03', difficulty: 0.50,
+      shape: '平角分成两个角', method: 'M-WHOLE-ANGLE',
+      whole: 180, xMin: 20, xMax: 160
+    },
+    {
+      family: familyAngleSplit, id: 'T-0203-B', kp: 'M4A-02-03', difficulty: 0.58,
+      shape: '周角分成两个角', method: 'M-WHOLE-ANGLE',
+      whole: 360, xMin: 40, xMax: 320
+    },
+
+    // ---- 02-04 角的大小关系与三角尺拼角（课本 P32 / P37）----
+    {
+      family: familyAngleRelation, id: 'T-0204-A', kp: 'M4A-02-04', difficulty: 0.45,
+      shape: '周角 / 平角 / 直角的换算', method: 'M-WHOLE-ANGLE'
+    },
+    {
+      family: familyTriangleMake, id: 'T-0204-B', kp: 'M4A-02-04', difficulty: 0.55,
+      shape: '一副三角尺能拼出哪个角', method: 'M-WHOLE-ANGLE'
     }
   ];
 
