@@ -381,9 +381,29 @@ html, body {
 @media (max-width: 1039px) {
   .view-practice { padding-bottom: 24px; }
 
-  /* 作答区自己不画框：里面的 .workzone 已经是一圈蓝框了，
-     外面再套一圈灰框会变成"框里还有个框"，更像弹出来的窗口。 */
-  .col-side { margin-top: 12px; }
+  /* 题目卡片和作答区拼成同一张卡片。
+     原来是两个独立的盒子，中间还有空隙 —— 一弹输入法，题干就被顶出屏幕，
+     孩子看着输入框却想不起题目问的是什么。拼成一张之后，题干和输入框
+     挨在一起，键盘弹起来也还在同一屏里。 */
+  .card-q { border-radius: 14px 14px 0 0; padding-bottom: 2px; }
+  .col-side {
+    margin-top: 0;
+    background: var(--card);
+    border-radius: 0 0 14px 14px;
+    padding: 0 14px 14px;
+  }
+
+  /* 作答区原本是一圈蓝色实线框，在手机上看起来就是"又弹出来一个窗口"。
+     改成一条虚线跟上面的题干分开就够了 —— 它是这张卡片的一部分，
+     不是另一个盒子。 */
+  .workzone {
+    background: transparent;
+    border: none;
+    border-top: 1px dashed var(--line);
+    border-radius: 0;
+    padding: 12px 0 0;
+    margin-bottom: 10px;
+  }
   .q-tools { margin-top: 8px; }
   .ruler-card { margin-top: 8px; }
 
