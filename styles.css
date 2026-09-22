@@ -367,31 +367,26 @@ html, body {
 }
 
 /* ---- 鼠标悬停（只在真的有鼠标时才加）---- */
-/* ==================== 手机：作答区钉在屏幕底部 ==================== */
+/* ==================== 手机：作答区跟在题目后面（不再钉在屏幕底部） ==================== */
 /*
- * 手机上题目和答案是上下两栏，题目一长，输入框和「确认」就被推到屏幕外，
- * 得滑下去才够得着 —— 每道题滑两次，十几道题下来很烦。
+ * 这里原先把作答区 position: fixed 钉在屏幕底部，理由是"题目一长，
+ * 输入框和确认按钮就被推到屏幕外，得滑下去才够得着"。
  *
- * 所以手机上把整个作答区固定在底部：题目随便滚，
- * 输入和按钮永远在屏幕最下面伸手就能点到。
+ * 实际用下来代价更大：那块固定区看起来像是从底下弹出来的另一个窗口，
+ * 和题目割裂开；屏幕也被切成上下两半，题目能看到的区域只剩一半。
+ *
+ * 现在改成正常文档流 —— 作答区就排在题目下面，跟着页面一起滚。
+ * 视觉上是一张卡片往下延续，不再有"另一个窗口"的感觉。
  */
 @media (max-width: 1039px) {
-  .view-practice { padding-bottom: 240px; }   /* 给底部这条留位置，别挡住题目 */
+  .view-practice { padding-bottom: 24px; }
 
   .col-side {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 30;
+    margin-top: 12px;
     background: var(--card);
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -6px 16px rgba(16, 24, 40, .08);
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-    /* 画笔、数位标尺也在这条里，展开后可能很高 ——
-       限个高，超出就在条内部滚，别把整个屏幕都占了 */
-    max-height: 62vh;
-    overflow-y: auto;
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 14px 16px;
   }
   .q-tools { margin-top: 8px; }
   .ruler-card { margin-top: 8px; }
