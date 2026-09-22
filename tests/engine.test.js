@@ -308,6 +308,11 @@ test('每道题都必须有带数字的题干，不能让孩子直接面对孤�
         assert.ok(q.stem.includes(String(f.x)), `${tpl.id} 题干里没有已知的那个角：${q.stem}`);
       } else if (k === 'angle-relation' || k === 'triangle-make') {
         assert.ok(/三角尺|周角|平角|直角/.test(q.stem), `${tpl.id} 题干里没有角的信息：${q.stem}`);
+      } else if (f.expect !== undefined) {
+        // 第三、五、六、七单元的题不是乘法，没有"两个因数"可言。
+        // 这类题只要求题干把题目里的数字摆出来，具体是哪个数字由各题型自己保证。
+        // 用 expect 判断而不是逐个列 kind：以后再加题型，这里不用跟着改。
+        assert.ok(/\d/.test(q.stem), `${tpl.id} 题干里没有数字：${q.stem}`);
       } else {
         assert.ok(q.stem.includes(String(f.a)) && q.stem.includes(String(f.b)),
           `${tpl.id} 题干里没有两个因数：${q.stem}`);
@@ -574,11 +579,105 @@ test('组卷：练过的知识点里，掌握度低的会被优先安排', () =>
   const counts = {};
   sess.questions.forEach(q => { counts[q.kpId] = (counts[q.kpId] || 0) + 1; });
 
-  assert.ok(counts['M4A-04-04'] >= counts['M4A-04-01'],
+  // 用 || 0：加了间隔复习之后，最熟的那个知识点可能整场一次都不出现 ——
+  // 这正是期望行为（名额让给弱的和到期的），不能因为键不存在就判失败。
+  assert.ok(counts['M4A-04-04'] >= (counts['M4A-04-01'] || 0),
     `最弱的知识点安排得比最熟的还少：${JSON.stringify(counts)}`);
-  assert.ok(counts['M4A-04-04'] >= counts['M4A-04-06'],
+  assert.ok(counts['M4A-04-04'] >= (counts['M4A-04-06'] || 0),
     `最弱的知识点安排得比第二熟的还少：${JSON.stringify(counts)}`);
   assert.ok(counts['M4A-04-04'] >= 3, `最弱的知识点太少了：${JSON.stringify(counts)}`);
+});
+
+test('间隔复习：答对往后推，答错退回当天到期', () => {
+  const state = freshState();
+  const kp = Knowledge.implemented()[0].id;
+  const rec = correct => ({
+    kpId: kp, templateId: 'T-x', shape: 'x', qid: 'q', difficulty: 0.4,
+    scaffoldLevel: 2, stem: 'x', isCorrect: correct, attempts: 1, errorTag: null,
+    magnitudeFailed: false, hintLevel: 0, isCorrectAfterHint: false,
+    inputType: 'number', timeSpentMs: 5000
+  });
+  const DAY = 24 * 60 * 60 * 1000;
+
+  let s = Engine.applyResult(state, rec(true)).state;
+  assert.strictEqual(s.stats[kp].level, 1, '答对要往上升一档');
+  assert.ok(s.stats[kp].dueAt > Date.now(), '答对之后不该立刻到期');
+
+  s = Engine.applyResult(s, rec(true)).state;
+  assert.strictEqual(s.stats[kp].level, 2);
+  assert.ok(s.stats[kp].dueAt >= Date.now() + Engine.REVIEW_STEPS[1] * DAY - 2000,
+    '第二档应该按阶梯往后推');
+
+  s = Engine.applyResult(s, rec(false)).state;
+  assert.strictEqual(s.stats[kp].level, 0, '答错要退回第一档');
+  assert.ok(s.stats[kp].dueAt <= Date.now(),
+    '答错要当天到期 —— 错的做法拖几天再纠正，孩子多半已经记牢了');
+});
+
+test('间隔复习：到期的知识点会被安排进这一场', () => {
+  const state = freshState();
+  const kp = Knowledge.implemented()[0].id;
+  state.stats[kp] = {
+    attempts: 5, corrects: 5, wrongs: 0, lastPracticedAt: 0,
+    level: 2, dueAt: Date.now() - 1000, streak: 5, wrongStreak: 0
+  };
+  state.mastery[kp] = 0.9;
+
+  assert.ok(Engine.dueKnowledge(state).some(k => k.id === kp), 'dueKnowledge 应该能查到它');
+
+  const sess = Engine.buildSession(state, rngFor(7));
+  const kinds = sess.questions.map(q => q.slotKind);
+  assert.ok(kinds.indexOf('review') >= 0, '到期的知识点应该被安排进来');
+  sess.questions.forEach(q => {
+    assert.ok(q.reason && q.reason.length > 3, '到期的题也要有出题理由');
+  });
+});
+
+test('间隔复习：到期名额不能超过一半，否则会把薄弱点饿死', () => {
+  const state = freshState();
+  // 所有知识点都到期（隔了很久没练的情况）
+  Knowledge.implemented().forEach(k => {
+    state.stats[k.id] = {
+      attempts: 6, corrects: 6, wrongs: 0, lastPracticedAt: 0,
+      level: 2, dueAt: Date.now() - 1000, streak: 6, wrongStreak: 0
+    };
+  });
+  state.mastery['M4A-04-04'] = 0.10;
+
+  const sess = Engine.buildSession(state, rngFor(5));
+  const counts = {};
+  sess.questions.forEach(q => { counts[q.kpId] = (counts[q.kpId] || 0) + 1; });
+  assert.ok((counts['M4A-04-04'] || 0) >= 2,
+    `到期占满名额会把薄弱点饿死：${JSON.stringify(counts)}`);
+});
+
+test('难度档位：连错降档、连对且掌握得好才升档', () => {
+  const kp = Knowledge.implemented()[0].id;
+  const base = {
+    attempts: 8, corrects: 7, wrongs: 1, lastPracticedAt: 0,
+    level: 1, dueAt: Date.now() + 86400000, streak: 0, wrongStreak: 0
+  };
+
+  const down = freshState();
+  down.stats[kp] = Object.assign({}, base, { wrongStreak: 2 });
+  down.mastery[kp] = 0.85;
+  assert.strictEqual(Engine.difficultyShift(down, kp), -1, '连错两次应该降档');
+
+  const up = freshState();
+  up.stats[kp] = Object.assign({}, base, { streak: 4 });
+  up.mastery[kp] = 0.85;
+  assert.strictEqual(Engine.difficultyShift(up, kp), 1, '连对且掌握度够高应该升档');
+
+  const flat = freshState();
+  flat.stats[kp] = Object.assign({}, base, { streak: 1 });
+  flat.mastery[kp] = 0.60;
+  assert.strictEqual(Engine.difficultyShift(flat, kp), 0, '一般情况保持基准难度');
+
+  // 掌握度低的时候，哪怕刚连对也要降档
+  const weak = freshState();
+  weak.stats[kp] = Object.assign({}, base, { streak: 5 });
+  weak.mastery[kp] = 0.20;
+  assert.strictEqual(Engine.difficultyShift(weak, kp), -1, '掌握度太低要先降下来');
 });
 
 test('组卷：连着几场下来，每个知识点都会被练到（新的不能被饿死）', () => {

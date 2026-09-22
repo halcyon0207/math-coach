@@ -18,6 +18,18 @@
 
   var QUESTIONS_PER_SESSION = 10;
 
+  /* ============================== 间隔复习 ============================== */
+  // 答对就往后推一档，答错退回第一天。
+  //
+  // 数学原本完全没有跨天调度 —— lastPracticedAt 只写不读，
+  // 错题当场最多错 3 次就公布答案放过，之后再也不出现。
+  // 于是"薄弱点"只活在家长报告的一张只读列表里，孩子永远练不到。
+  //
+  // 算术和生字是一样的：今天会做，下周照样忘。
+  // 这套阶梯是从语文那边搬过来的（1/2/4/7/15），两边保持一致。
+  var REVIEW_STEPS = [1, 2, 4, 7, 15];
+  var DAY = 24 * 60 * 60 * 1000;
+
   /* ============================== 随机数 ============================== */
   // 可复现的伪随机：同一个种子必然出同一套题，便于回看与调试
   function mulberry32(seed) {
@@ -121,6 +133,41 @@
     return 1;
   }
 
+  /* ============================== 难度档位 ============================== */
+  // 每个知识点的出题难度随练习表现上下浮动，不再写死在模板上。
+  //
+  // 之前难度是模板的静态属性，组卷只按槽位目标值挑最接近的模板，
+  // 而目标值本身也是写死的 —— 于是孩子连对十道，题还是一样难。
+  // 那和做纸质试卷没有区别，"AI 出题"的意义也就没了。
+  //
+  // 现在看三件事：连对、连错、掌握度。
+  //   · 连错 2 次以上，或掌握度低于 0.40   → 降一档（先让他做得出来）
+  //   · 连对 3 次以上，且掌握度到 0.70    → 升一档
+  //   · 其余                             → 基准难度
+  // 档位只影响"挑哪个模板"，不修改模板自身的难度值 —— 那个是手调出来的。
+  var DIFFICULTY = {
+    STEP: 0.12,            // 每档的难度偏移
+    DROP_WRONG_STREAK: 2,  // 连错几次就降档
+    DROP_MASTERY: 0.40,    // 掌握度低于多少就降档
+    UP_STREAK: 3,          // 连对几次才考虑升档
+    UP_MASTERY: 0.70       // 升档要求的掌握度
+  };
+
+  // 返回 -1（降）/ 0（平）/ +1（升）
+  function difficultyShift(state, kpId) {
+    var st = statsOf(state, kpId);
+    var m = masteryOf(state, kpId);
+    if (st.wrongStreak >= DIFFICULTY.DROP_WRONG_STREAK) return -1;
+    if (m < DIFFICULTY.DROP_MASTERY) return -1;
+    if (st.streak >= DIFFICULTY.UP_STREAK && m >= DIFFICULTY.UP_MASTERY) return 1;
+    return 0;
+  }
+
+  // 这个知识点现在该出多难的题
+  function targetDifficulty(state, kp) {
+    return kp.difficultyBase + difficultyShift(state, kp.id) * DIFFICULTY.STEP;
+  }
+
   /* ============================== 出题 ============================== */
   function buildQuestion(template, rng, scaffoldLevel) {
     var data = template.gen(rng);
@@ -164,7 +211,10 @@
   }
 
   function statsOf(state, kpId) {
-    return (state.stats && state.stats[kpId]) || { attempts: 0, corrects: 0, wrongs: 0, lastPracticedAt: 0 };
+    return (state.stats && state.stats[kpId]) || {
+      attempts: 0, corrects: 0, wrongs: 0, lastPracticedAt: 0,
+      level: 0, dueAt: 0, streak: 0, wrongStreak: 0
+    };
   }
 
   function chooseTemplate(pool, targetDiff, rng, recentIds) {
@@ -197,6 +247,10 @@
       if (st.wrongs > 0) return '你在「' + name + '」上错过了 ' + st.wrongs + ' 次，再练一下。';
       return '「' + name + '」还不太稳，再来几道。';
     }
+    if (kind === 'review') {
+      if (st.wrongs > 0) return '「' + name + '」上次错过了，今天先订正一次。';
+      return '「' + name + '」到复习的日子了 —— 现在再练一次，才不会忘。';
+    }
     if (kind === 'keep') {
       return '「' + name + '」你已经掌握得不错了。过几天再回来做一次，才不会忘。';
     }
@@ -218,8 +272,15 @@
       return kps.some(function (k) { return k.id === t.kp; });
     });
 
+    // 掌握度相同时，练得少的排前面。
+    // 光按掌握度排会出事：补完单元后知识点有 15 个，而一场只有 7 个自由名额，
+    // 每场都从最弱的开始取、取满就停 —— 排在最末的那个知识点几乎永远轮不到，
+    // 孩子练了好几场，某个单元一次都没见过。
+    // 加上"练得少的优先"之后，队伍会自己往前推，不会有人被卡在队尾。
     var byWeak = kps.slice().sort(function (a, b) {
-      return masteryOf(state, a.id) - masteryOf(state, b.id);
+      var ma = masteryOf(state, a.id), mb = masteryOf(state, b.id);
+      if (Math.abs(ma - mb) > 1e-6) return ma - mb;
+      return statsOf(state, a.id).attempts - statsOf(state, b.id).attempts;
     });
 
     var warmPool = pool.filter(function (t) { return t.difficulty <= 0.45; });
@@ -235,29 +296,60 @@
     var middleTarget = Math.max(1, count - slots.length - 1);
     var middle = [];
 
-    // 1) 还没练过的知识点先各占 2 个位置。
+    // 先把到期清单算出来：下面"没练过的"能占多少名额，取决于有没有复习要插进来。
+    var now = Date.now();
+    var dueKps = kps.filter(function (k) {
+      var s = statsOf(state, k.id);
+      return s.attempts > 0 && (s.dueAt || 0) <= now;
+    }).sort(function (a, b) {
+      // 到期的一批内部，还是弱的先来：到期且没掌握的，比到期但很熟的更值得现在练。
+      return masteryOf(state, a.id) - masteryOf(state, b.id);
+    });
+
+    // 1) 还没练过的知识点先露面（每个 1 个位置）。
     //    不这么做的话，"薄弱"和"抗遗忘"两档会把名额占满 ——
     //    之前"乘法估算"就是这样一整场都没出现过，孩子根本没机会看到它。
-    // 分两轮：第一轮让每个没练过的知识点各占 1 个位置，第二轮才补第 2 个。
     //
-    // 这里改过一次。原来的写法是"每个没练过的知识点直接给 2 个名额"，
-    // 知识点少的时候没问题，但一多就会出事：中间的名额只有 count - 3 个，
-    // 而 5 个知识点按 2 个算要 10 个 —— 排在最末的知识点一个名额都拿不到，
-    // 整场练习里它一次都不出现，孩子根本没机会看到它。
-    // 先把"露面"这件事保住，再谈加练，顺序不能反过来。
-    var untouched = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; });
+    //    这里改过两次。第一次是改成"每个先占 1 个，而不是直接给 2 个"：
+    //    直接给 2 个时，知识点一多，排在最末的一个名额都拿不到，
+    //    整场一次都不出现。先保住"露面"，再谈加练，顺序不能反。
+    //
+    //    第二次是把封顶改成**有条件的**：
+    //    没有任何东西到期时，露面这一项可以用满 middle —— 第一次来练的孩子
+    //    本来就只该看新东西；等到期复习插进来之后，才让出一半名额给它。
+    //    写死封顶会让"连着几场要覆盖所有知识点"变成一件根本做不到的事。
+    //    原来的"第二轮加练"取消了：新知识点默认掌握度就偏低，
+    //    在下面"薄弱轮流"那一档里自然还会被排到，不需要再单独占位置。
+    var NEW_ROOM = dueKps.length ? Math.max(1, Math.floor(middleTarget / 2)) : middleTarget;
+    var untouched = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; })
+      .slice(0, NEW_ROOM);
     untouched.forEach(function (k) {
       if (middle.length < middleTarget) {
-        middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
-      }
-    });
-    untouched.forEach(function (k) {
-      if (middle.length < middleTarget) {
-        middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
+        middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
       }
     });
 
-    // 2) 剩下的位置按薄弱程度轮流补。
+    // 2) 到期的知识点接着复现 —— 这是间隔复习真正起作用的地方。
+    //
+    //    排位刻意在"没练过"之后、"薄弱"之前：
+    //    · 没练过的要先露面，否则整场可能一次都不出现；
+    //    · 到期的比"一直不会的"更值得现在练 —— 会做但快忘的，补一次就回到掌握状态；
+    //      而一直不会的那块，本来就在薄弱档里排着，不会因为这次让位就丢掉。
+
+    // 到期的最多占一半名额。
+    // 不设上限的话，隔了几天回来练时所有知识点都到期，会把 middle 全占满 ——
+    // 那么"最弱的优先"就等于被取消了。复习不该把薄弱点的练习名额吃掉，
+    // 这和下面 keep 那条"跳过最薄弱的知识点"是同一个道理。
+    var dueLimit = Math.floor(middleTarget / 2);
+    var dueUsed = 0;
+    dueKps.forEach(function (k) {
+      if (middle.length < middleTarget && dueUsed < dueLimit) {
+        middle.push({ kind: 'review', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
+        dueUsed++;
+      }
+    });
+
+    // 3) 剩下的位置按薄弱程度轮流补。
     //
     // 最弱的那个在一轮里占两个位置。只让它"先出"是不够的：
     // 知识点少的时候轮流一圈它自然分得多，知识点一多（现在是 5 个），
@@ -268,15 +360,18 @@
     while (middle.length < middleTarget) {
       var k = order[wi % order.length];
       wi++;
-      middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: k.difficultyBase });
+      middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
     }
 
-    // 3) 有足够练习记录的知识点，抽两个位置换成"抗遗忘"的隔几天复现。
+    // 4) 有足够练习记录、且还没到期的知识点，抽两个位置换成本场内的隔题复现。
     //    挑选时从后往前找，并且跳过最薄弱的那个知识点 ——
     //    抗遗忘不该把薄弱点的练习名额吃掉。
-    var reviewable = kps.filter(function (k) { return statsOf(state, k.id).attempts >= 3; })
-      .sort(function (a, b) { return masteryOf(state, b.id) - masteryOf(state, a.id); });
-    var protectedCount = Math.min(untouched.length * 2, middleTarget);
+    var reviewable = kps.filter(function (k) {
+      var s = statsOf(state, k.id);
+      // 已经到期的那批由 review 档负责了，这里不重复占位
+      return s.attempts >= 3 && (s.dueAt || 0) > now;
+    }).sort(function (a, b) { return masteryOf(state, b.id) - masteryOf(state, a.id); });
+    var protectedCount = Math.min(untouched.length, middleTarget);
 
     for (var r = 0; r < Math.min(2, reviewable.length); r++) {
       for (var idx = middle.length - 1; idx >= protectedCount; idx--) {
@@ -285,7 +380,7 @@
         var kk = reviewable[r];
         middle[idx] = {
           kind: 'keep', pool: Templates.forKnowledge(kk.id), kp: kk,
-          diff: kk.difficultyBase + 0.08
+          diff: targetDifficulty(state, kk) + 0.08
         };
         break;
       }
@@ -396,12 +491,33 @@
     mutated.stats = mutated.stats || {};
     mutated.history = mutated.history || [];
 
+    var isRight = !!record.isCorrect;
+    var nextStreak = isRight ? (st.streak || 0) + 1 : 0;
+    var nextWrongStreak = isRight ? 0 : (st.wrongStreak || 0) + 1;
+    var nextLevel = st.level || 0;
+    var nextDueAt;
+
+    if (isRight) {
+      // 答对就往后推一档；到了最后一档就停在 15 天。
+      nextLevel = Math.min(nextLevel + 1, REVIEW_STEPS.length - 1);
+      nextDueAt = Date.now() + REVIEW_STEPS[nextLevel] * DAY;
+    } else {
+      // 答错退回第一天，而且是**当天到期**：错的做法拖几天才纠正，
+      // 孩子这几天里多半已经把错的记牢了，改起来的成本比当时高得多。
+      nextLevel = 0;
+      nextDueAt = Date.now();
+    }
+
     mutated.mastery[kpId] = next;
     mutated.stats[kpId] = {
       attempts: st.attempts + 1,
-      corrects: st.corrects + (record.isCorrect ? 1 : 0),
-      wrongs: st.wrongs + (record.isCorrect ? 0 : 1),
-      lastPracticedAt: Date.now()
+      corrects: st.corrects + (isRight ? 1 : 0),
+      wrongs: st.wrongs + (isRight ? 0 : 1),
+      lastPracticedAt: Date.now(),
+      streak: nextStreak,
+      wrongStreak: nextWrongStreak,
+      level: nextLevel,
+      dueAt: nextDueAt
     };
     mutated.history.push(record);
     if (mutated.history.length > 2000) mutated.history = mutated.history.slice(-2000);
@@ -421,6 +537,18 @@
     }).filter(function (x) {
       return x.kp && x.mastery < 0.70;
     }).sort(function (a, b) { return a.mastery - b.mastery; });
+  }
+
+  /* ============================== 到期查询 ============================== */
+  // 今天该复习的知识点。首页和进度页拿它显示"还有 N 块到期了"。
+  // 间隔复习如果只是引擎内部排个序，孩子是看不见的 —— 看得见才会去点。
+  function dueKnowledge(state, unitFilter) {
+    var now = Date.now();
+    return Knowledge.implemented().filter(function (k) {
+      if (unitFilter && unitFilter !== 'all' && k.unit !== unitFilter) return false;
+      var s = statsOf(state, k.id);
+      return s.attempts > 0 && (s.dueAt || 0) <= now;
+    });
   }
 
   /* ============================== 汇总报告 ============================== */
@@ -466,10 +594,15 @@
 
   return {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION,
+    REVIEW_STEPS: REVIEW_STEPS,
+    DIFFICULTY: DIFFICULTY,
     mulberry32: mulberry32,
     randomSeed: randomSeed,
     BKT: BKT,
     SCAFFOLD: SCAFFOLD,
+    difficultyShift: difficultyShift,
+    targetDifficulty: targetDifficulty,
+    dueKnowledge: dueKnowledge,
     initialMastery: initialMastery,
     updateMastery: updateMastery,
     masteryLabel: masteryLabel,

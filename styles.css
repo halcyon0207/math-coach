@@ -488,6 +488,20 @@ html, body {
 .af-arc { stroke: var(--warn); stroke-width: 2.5; fill: none; }
 .af-dot { fill: var(--primary); }
 
+/* ---------------- 条形统计图 ---------------- */
+/* 网格线用 --line、刻度用 --muted：深浅色下都能看清，不用另配一套颜色 */
+.bar-fig { display: block; width: 100%; max-width: 320px; height: auto; margin: 2px 0 14px; }
+.bf-grid { stroke: var(--line); stroke-width: 1; }
+.bf-axis { stroke: var(--muted); stroke-width: 1.5; }
+.bf-bar { fill: var(--primary); opacity: 0.85; }
+.bf-label { fill: var(--text); font-size: 11px; }
+.bf-tick { fill: var(--muted); font-size: 10px; }
+
+/* ---------------- 到期复习（间隔复习要看得见才有用） ---------------- */
+.card-due { border-left: 3px solid var(--warn); }
+.card-due .card-title { color: var(--warn); }
+.kp-due { color: var(--warn); font-weight: 600; }
+
 /* ==================== 单元选择 / 分组 ==================== */
 .unit-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .unit-btn {

@@ -108,6 +108,20 @@
 
     var unitName = unit === 'all' ? '全部单元' : K.shortUnit(unit);
 
+    // 到期的知识点要在首页说出来。
+    // 引擎里排个序是看不见的 —— 孩子不会因为某个数字到期了就想去练，
+    // 但"这几块今天该复习了"是一句他能懂的话。
+    var dueList = E.dueKnowledge(state, unit);
+    var dueCard = dueList.length
+      ? '<div class="card card-due">' +
+        '<h2 class="card-title">该复习了（' + dueList.length + '）</h2>' +
+        '<p class="card-note">这几块按 1/2/4/7/15 天的节奏到期了。现在练一次，比过几天再捡起来省力得多。</p>' +
+        '<ul class="tag-list">' + dueList.map(function (k) {
+          return '<li><b>' + esc(k.name) + '</b></li>';
+        }).join('') + '</ul>' +
+        '</div>'
+      : '';
+
     return '' +
       '<div class="hero">' +
       '<h1>数学小教练</h1>' +
@@ -119,6 +133,8 @@
       '<p class="card-note">一次练一个单元，比混在一起效果好。</p>' +
       unitBtns +
       '</div>' +
+
+      dueCard +
 
       '<div class="card card-cta">' +
       '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
@@ -155,6 +171,13 @@
       var pct = untouched ? 0 : Math.round(p * 100);
       var cls = p >= 0.8 ? 'lv-4' : p >= 0.6 ? 'lv-3' : p >= 0.4 ? 'lv-2' : 'lv-1';
       var method = K.METHODS[k.method];
+      // 下次复习的时间要说出来。掌握度是一个抽象数字，
+      // "还有 3 天要复习"才是孩子能理解、也愿意照着做的事。
+      var dueTxt = '';
+      if (!untouched && st.dueAt) {
+        var left = Math.ceil((st.dueAt - Date.now()) / 86400000);
+        dueTxt = left <= 0 ? '今天该复习' : (left === 1 ? '明天复习' : left + ' 天后复习');
+      }
       return '' +
         '<div class="kp-row">' +
         '<div class="kp-head">' +
@@ -164,6 +187,7 @@
         '<div class="bar">' + (untouched ? '' : '<i class="' + cls + '" style="width:' + pct + '%"></i>') + '</div>' +
         '<div class="kp-foot">' +
         '<span>' + (untouched ? '课本第 ' + k.bookPage + ' 页' : '练过 ' + st.attempts + ' 题，对 ' + st.corrects + ' 题') + '</span>' +
+        (dueTxt ? '<span class="kp-due">' + esc(dueTxt) + '</span>' : '') +
         (method ? '<span class="kp-method">主要方法：' + esc(method.name) + '</span>' : '') +
         '</div>' +
         '</div>';
@@ -366,7 +390,7 @@
       '<canvas id="qCanvas" class="q-canvas' + (app.penOn ? ' on' : '') + '"></canvas>' +
       methodBar +
       (q.stem ? '<div class="stem"><span class="stem-label">题目</span>' + esc(q.stem) + '</div>' : '') +
-      (q.figure ? angleFigureHtml(q.figure) : '') +
+      (q.figure ? figureHtml(q.figure) : '') +
       '<ol class="steps">' + stepsHtml + '</ol>' +
       '</div>' +
       '</div>' +
@@ -456,6 +480,61 @@
       ' A30 30 0 ' + large + ' 0 ' + arcEnd[0] + ' ' + arcEnd[1] + '"/>' +
       '<circle class="af-dot" cx="' + ox + '" cy="' + oy + '" r="3.5"/>' +
       '</svg>';
+  }
+
+  /* ============================== 条形统计图 ============================== */
+  // 读图题没有图就没法做，所以图跟着题目数据一起生成（见 templates 的 familyBarChart）。
+  //
+  // 图上刻意只标 0 和最大值：孩子得自己数格子推出"一格代表多少" ——
+  // 这正是这一类题要练的能力，把答案直接印在图上就练不到了。
+  function barFigureHtml(fig) {
+    if (!fig || fig.type !== 'bar') return '';
+    var items = fig.items || [];
+    if (!items.length) return '';
+
+    var W = 280, H = 176;
+    var padL = 34, padB = 28, padT = 10, padR = 6;
+    var plotW = W - padL - padR;
+    var plotH = H - padT - padB;
+    var maxCells = items.reduce(function (m, it) { return Math.max(m, it.cells); }, 1);
+    var cellH = plotH / (maxCells + 1);
+    var slot = plotW / items.length;
+    var barW = Math.min(30, slot * 0.56);
+    var baseY = padT + plotH;
+
+    var out = ['<svg class="bar-fig" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="条形统计图">'];
+
+    // 每一格画一条网格线：孩子要靠它数格子
+    for (var c = 0; c <= maxCells; c++) {
+      var gy = (baseY - c * cellH).toFixed(1);
+      out.push('<line class="bf-grid" x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '"/>');
+    }
+    out.push('<text class="bf-tick" x="' + (padL - 6) + '" y="' + (baseY + 4) + '" text-anchor="end">0</text>');
+    out.push('<text class="bf-tick" x="' + (padL - 6) + '" y="' + (baseY - maxCells * cellH + 4) +
+      '" text-anchor="end">' + (maxCells * fig.unitPerCell) + '</text>');
+
+    items.forEach(function (it, i) {
+      var h = it.cells * cellH;
+      var x = (padL + slot * i + (slot - barW) / 2).toFixed(1);
+      var y = (baseY - h).toFixed(1);
+      out.push('<rect class="bf-bar" x="' + x + '" y="' + y + '" width="' + barW.toFixed(1) +
+        '" height="' + h.toFixed(1) + '" rx="2"/>');
+      out.push('<text class="bf-label" x="' + (padL + slot * i + slot / 2).toFixed(1) +
+        '" y="' + (H - padB + 18) + '" text-anchor="middle">' + esc(it.label) + '</text>');
+    });
+
+    out.push('<line class="bf-axis" x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + baseY + '"/>');
+    out.push('<line class="bf-axis" x1="' + padL + '" y1="' + baseY + '" x2="' + (W - padR) + '" y2="' + baseY + '"/>');
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  // 题目里可能有不同类型的插图，统一从这里分发
+  function figureHtml(fig) {
+    if (!fig) return '';
+    if (fig.type === 'angle') return angleFigureHtml(fig);
+    if (fig.type === 'bar') return barFigureHtml(fig);
+    return '';
   }
 
   /* ============================== 画笔 ============================== */

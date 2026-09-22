@@ -42,6 +42,10 @@
     EXACT_NOT_ESTIMATE: { label: '直接精算了，没有估算', advice: '估算题要求先把因数凑整再算，不用算出准确值。' },
     HALF_ROUNDED: { label: '只凑整了一个因数', advice: '两个因数都要凑整，只凑一个结果会偏。' },
     ESTIMATE_PRODUCT: { label: '整十数相乘算错', advice: '这一步是口算，先算有效数字，再数 0。' },
+    // ---- 第四单元 因数中间有 0 的乘法 ----
+    MID_ZERO_SKIP: { label: '把因数中间的 0 漏掉了', advice: '306 中间的 0 也要占着数位，每一位都要乘到，不能跳过去。' },
+    PART_NO_SHIFT: { label: '十位乘出来的没有错开一位', advice: '用十位去乘，结果末尾要补一个 0（也就是向左错开一位）再相加。' },
+    PART_SUM: { label: '两部分相加算错了', advice: '个位乘出来的和十位乘出来的，最后要加起来 —— 这一步最容易错。' },
     // ---- 第一单元 万以上数的认识 ----
     UNIT_ZERO_FEW: { label: '去掉的 0 数少了', advice: '改写成"万"要去掉 4 个 0，改写成"亿"要去掉 8 个 0，去掉少了结果就偏大。' },
     UNIT_ZERO_MORE: { label: '去掉的 0 数多了', advice: '改写成"万"只去掉 4 个 0，改写成"亿"只去掉 8 个 0，去掉多了结果就偏小。' },
@@ -64,6 +68,27 @@
     RELATION_WRONG: { label: '倍数关系记错了', advice: '1 周角 = 2 平角 = 4 直角（360 = 2×180 = 4×90）。记住这一串就够。' },
     EDGE_LENGTH_CONFUSE: { label: '以为边画得越长角就越大', advice: '角的大小只和两条边张开的程度有关，和边画得长不长没有关系。' },
     CANNOT_MAKE: { label: '这个角用一副三角尺拼不出来', advice: '一副三角尺只有 30°、45°、60°、90°，把它们相加或相减，能拼出的角是固定的几个。' },
+    // ---- 第三单元 相交与平行 ----
+    INTERSECT_AS_PERP: { label: '以为相交就是垂直', advice: '两条直线相交不一定垂直 —— 只有相交成直角（90°）才叫互相垂直。先看夹角是多少度。' },
+    PERP_NOT_RECOGNIZED: { label: '没认出直角', advice: '看到 90°（或者画着直角符号的那个角），这两条直线就是互相垂直。' },
+    PARALLEL_AS_INTERSECT: { label: '把平行当成了相交', advice: '同一平面内、怎么延长都不相交的两条直线才叫互相平行。' },
+    NOT_SAME_PLANE: { label: '忘了"同一平面内"这个前提', advice: '说"平行"必须加上"在同一平面内" —— 不在同一个平面里的两条直线，不相交也不算平行。' },
+    DISTANCE_CONFUSE: { label: '把斜的线段当成了距离', advice: '点到直线的距离，是从这个点画到直线的**垂直**线段的长度，不是随便连一条斜线。' },
+    // ---- 第五单元 常见的数量关系 ----
+    RELATION_REVERSE: { label: '三个量的关系搞反了', advice: '单价 × 数量 = 总价；速度 × 时间 = 路程。知道其中两个求第三个，用除法而不是乘法。' },
+    QUANTITY_WRONG: { label: '代错了量', advice: '先把"哪个是单价、哪个是数量"标出来，再套关系式，别看见两个数就相乘。' },
+    UNIT_MISMATCH: { label: '单位没统一就计算', advice: '速度和时间的单位要对上：速度是"每分钟"就用分钟，是"每小时"就用小时。' },
+    DIV_MUL_REVERSE: { label: '该除的做成乘法了', advice: '已知总价和单价，求数量 —— 要用总价 ÷ 单价，不是相乘。' },
+    // ---- 第六单元 长方形、正方形的面积 ----
+    AREA_PERIMETER: { label: '把周长算成了面积', advice: '周长是一圈的长度（长+宽然后再×2），面积是表面的大小（长×宽）。先想清楚问的是哪一个。' },
+    AREA_UNIT_RATE: { label: '面积单位进率记错了', advice: '面积单位的进率是 100 不是 10：1 平方米 = 100 平方分米，1 平方分米 = 100 平方厘米。' },
+    SIDE_SQUARE_CONFUSE: { label: '正方形面积算成了边长×2', advice: '边长 × 2 那是周长的一部分。正方形的面积是边长 × 边长。' },
+    UNIT_CONVERT_DIR: { label: '换算方向反了', advice: '大单位换成小单位要乘进率（1 平方米 = 100 平方分米），小单位换大单位要除。' },
+    // ---- 第七单元 条形统计图 ----
+    AXIS_SCALE_WRONG: { label: '每格代表多少看错了', advice: '先看纵轴：一格代表几个。看错这一格，后面全错。' },
+    READ_VALUE_WRONG: { label: '条形高度读错了', advice: '数格子的时候要对齐纵轴的刻度，别凭"看起来多高"去猜。' },
+    COMPARE_WRONG: { label: '比多少看反了', advice: '问"最多/最少"就先找出最高和最低的那两根；问"相差多少"就大数减小数。' },
+    SUM_WRONG: { label: '加起来算错了', advice: '求一共多少，要把每一项都算进去，一项一项加起来，别漏掉。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -77,6 +102,18 @@
     for (var i = 0; i < 300; i++) {
       var v = pickInt(rng, min, max);
       if (v % 10 !== 0) return v;
+    }
+    return min;
+  }
+
+  // 取一个"凑整之后不会偏太多"的数。
+  // 个位是 5 的数（25、35……）凑整要跳 5，两个这样的数碰到一起，
+  // 估算值和精确值能差到 40% —— 那就不是估算，是乱估了，孩子也没法用它去检验精算。
+  function pickEstimateNum(rng, min, max) {
+    for (var i = 0; i < 300; i++) {
+      var v = pickInt(rng, min, max);
+      var u = v % 10;
+      if (u !== 0 && u !== 5) return v;
     }
     return min;
   }
@@ -978,6 +1015,716 @@
     };
   }
 
+  /* ============================ 第三单元 相交与平行 ============================ */
+  // 这一单元最容易错的地方不是"不会画"，而是**把相交当成垂直**：
+  // 四年级刚接触垂直，看到两条线交叉就喊"垂直"，忘了还要成 90°。
+  // 所以题目刻意一半出直角、一半出斜角，让这个混淆点暴露出来。
+  //
+  // 选择题的 value 一律用数字 —— 判分是 Number(value) === Number(answer)，
+  // 传字符串会变成 NaN，那道题永远判不对。
+
+  function familyPerpJudge(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var isRight = rng() < 0.5;
+        var pool = [30, 45, 60, 75, 100, 120, 135, 150];
+        var deg = isRight ? 90 : pool[pickInt(rng, 0, pool.length - 1)];
+
+        return {
+          stem: '两条直线相交，其中一个角是 ' + deg + '°，这两条直线的关系是？',
+          steps: [
+            {
+              id: 'is-right', tier: 1, type: 'choice',
+              prompt: '这个角是直角吗？',
+              // 选项值用 1 / 2，不用 1 / 0：步骤答案要求为正整数，
+              // 一个答案为 0 的步骤既不合规范，也会被"所有步骤答案为正"这条校验拦下。
+              answer: isRight ? 1 : 2,
+              options: shuffle(rng, [
+                { value: 1, label: '是直角（90°）', tag: isRight ? null : 'INTERSECT_AS_PERP' },
+                { value: 2, label: '不是直角', tag: isRight ? 'PERP_NOT_RECOGNIZED' : null }
+              ]),
+              hint: '直角是方方正正的 90°。',
+              teach: [deg + '° ' + (isRight ? '正好是 90°，是直角' : '不是 90°，不是直角')]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '它们是什么关系？',
+              answer: isRight ? 1 : 2,
+              options: shuffle(rng, [
+                { value: 1, label: '互相垂直', tag: isRight ? null : 'INTERSECT_AS_PERP' },
+                { value: 2, label: '相交但不垂直', tag: isRight ? 'PERP_NOT_RECOGNIZED' : null },
+                { value: 3, label: '互相平行', tag: 'PARALLEL_AS_INTERSECT' }
+              ]),
+              hint: '相交成直角才叫互相垂直；只是交叉在一起不算。',
+              teach: [
+                '两条直线相交成 ' + deg + '°',
+                deg === 90 ? '90° 是直角，所以这两条直线互相垂直'
+                  : '不是 90°，所以只是相交，不垂直'
+              ]
+            }
+          ],
+          facts: { kind: 'perp-judge', deg: deg, isRight: isRight, expect: isRight ? 1 : 2 }
+        };
+      }
+    };
+  }
+
+  function familyParallelJudge(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var isParallel = rng() < 0.5;
+        return {
+          stem: isParallel
+            ? '在同一个平面内有 2 条直线，无论怎么延长都不会相交，这两条直线（　　）。'
+            : '在同一个平面内有 2 条直线，延长之后会相交，这两条直线（　　）。',
+          steps: [
+            {
+              // 这一步是必须的：平行判断只有一个最终步骤的话，
+              // 支架一撤这道题就"光秃秃"地只剩一个问题，孩子没有任何抓手。
+              id: 'how', tier: 1, type: 'choice',
+              prompt: '判断两条直线是不是平行，要看什么？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '把它们延长，看会不会相交', tag: null },
+                { value: 2, label: '看它们是不是一样长', tag: 'PARALLEL_AS_INTERSECT' },
+                { value: 3, label: '看它们有没有垂直', tag: 'INTERSECT_AS_PERP' }
+              ]),
+              hint: '平行不看长短，也不看垂不垂直 —— 只看延长后会不会相交。',
+              teach: ['判断平行：同一平面内，延长后永远不相交。']
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '它们是什么关系？',
+              answer: isParallel ? 1 : 2,
+              options: shuffle(rng, [
+                { value: 1, label: '互相平行', tag: isParallel ? null : 'PARALLEL_AS_INTERSECT' },
+                { value: 2, label: '相交', tag: isParallel ? 'PARALLEL_AS_INTERSECT' : null },
+                { value: 3, label: '互相垂直', tag: 'INTERSECT_AS_PERP' }
+              ]),
+              hint: '平行要同时满足两个条件：在同一平面内、延长后永远不相交。',
+              teach: [
+                isParallel
+                  ? '同一平面内 + 延长后永不相交 = 互相平行'
+                  : '延长之后会相交，那就不是平行，是相交'
+              ]
+            }
+          ],
+          facts: { kind: 'parallel-judge', isParallel: isParallel, expect: isParallel ? 1 : 2 }
+        };
+      }
+    };
+  }
+
+  // 点到直线的距离：垂线段最短。
+  // 这一条是后面学三角形高、平行四边形高的地基，概念不清会一路错下去。
+  function familyPerpDistance(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var d = pickInt(rng, 3, 12);                 // 垂直线段（最短）
+        var a = d + pickInt(rng, 1, 4);
+        var b = d + pickInt(rng, 5, 9);
+        return {
+          stem: '从点 P 向直线 l 画了 3 条线段：与直线垂直的那条长 ' + d +
+            ' 厘米，另外两条斜着的长 ' + a + ' 厘米和 ' + b + ' 厘米。点 P 到直线 l 的距离是多少？',
+          steps: [
+            {
+              id: 'which', tier: 1, type: 'choice',
+              prompt: '点 P 到直线 l 的距离，指的是哪一条线段的长度？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '与直线垂直的那条', tag: null },
+                { value: 2, label: '最长的那条', tag: 'DISTANCE_CONFUSE' },
+                { value: 3, label: '随便哪一条都行', tag: 'DISTANCE_CONFUSE' }
+              ]),
+              hint: '垂线段最短 —— 距离指的是这一条。',
+              teach: ['距离指的是垂直线段的长度，不是随便连一条斜线。']
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '点 P 到直线 l 的距离是多少厘米？',
+              answer: d,
+              options: shuffle(rng, [
+                { value: d, label: d + ' 厘米', tag: null },
+                { value: a, label: a + ' 厘米', tag: 'DISTANCE_CONFUSE' },
+                { value: b, label: b + ' 厘米', tag: 'DISTANCE_CONFUSE' }
+              ]),
+              hint: '先找出与直线垂直的那条，它的长度就是距离。',
+              teach: ['垂直的那条长 ' + d + ' 厘米，所以点 P 到直线 l 的距离是 ' + d + ' 厘米。']
+            }
+          ],
+          facts: { kind: 'perp-distance', d: d, expect: d }
+        };
+      }
+    };
+  }
+
+  /* ============================ 第四单元 因数中间有 0 ============================ */
+  // 末尾有 0 可以用"数 0 补回去"，中间有 0 不行 —— 中间的 0 占着数位，
+  // 每一位都要乘到。孩子最常见的错是把 306 当成 36 来算。
+  function familyMiddleZero(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var h = pickInt(rng, 2, 9);
+        var u = pickInt(rng, 1, 9);
+        var a = h * 100 + u;              // 十位固定为 0，如 306
+        // 乘数的个位不能是 0：否则"用个位去乘"那一步会算出 0，
+        // 一个 0 分的步骤既没意义，也会让"步骤答案必须为正"这条校验挂掉。
+        var b = pickCore(rng, 12, 49);
+        var bu = b % 10, bt = Math.floor(b / 10);
+        var p1 = a * bu;                  // 个位部分
+        var p2 = a * bt * 10;             // 十位部分（末尾补 0）
+        var answer = p1 + p2;
+        var skipZero = (h * 10 + u) * b;  // 把中间的 0 漏掉：306 → 36
+
+        return {
+          stem: a + ' × ' + b + ' = ?',
+          steps: [
+            {
+              id: 'part1', tier: 2, type: 'number',
+              prompt: a + ' × ' + bu + ' = ?',
+              answer: p1, distractors: [],
+              hint: '先用个位去乘。' + a + ' 中间的 0 也要乘到。',
+              teach: [a + ' × ' + bu + ' = ' + p1]
+            },
+            {
+              id: 'part2', tier: 1, type: 'number',
+              prompt: a + ' × ' + (bt * 10) + ' = ?',
+              answer: p2,
+              distractors: dedupeDistractors(p2, [
+                { value: a * bt, tag: 'PART_NO_SHIFT' },
+                { value: skipZero, tag: 'MID_ZERO_SKIP' }
+              ]),
+              hint: '用十位去乘，结果末尾要补一个 0。',
+              teach: [a + ' × ' + bt + ' = ' + (a * bt) + '，末尾补一个 0 → ' + p2]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: a + ' × ' + b + ' = ?',
+              answer: answer,
+              distractors: dedupeDistractors(answer, [
+                { value: skipZero, tag: 'MID_ZERO_SKIP' },
+                { value: p1 + a * bt, tag: 'PART_NO_SHIFT' },
+                { value: answer + Math.max(2, Math.round(answer * 0.02)), tag: 'PART_SUM' }
+              ]),
+              hint: '把两部分加起来。',
+              teach: [
+                '① ' + a + ' × ' + bu + ' = ' + p1,
+                '② ' + a + ' × ' + (bt * 10) + ' = ' + p2,
+                '③ ' + p1 + ' + ' + p2 + ' = ' + answer,
+                '④ ' + a + ' 中间的 0 占着十位，每一位都要乘到'
+              ]
+            }
+          ],
+          facts: { kind: 'middle-zero', a: a, b: b, expect: answer }
+        };
+      }
+    };
+  }
+
+  /* ============================ 第五单元 常见的数量关系 ============================ */
+  // 这一单元的难点不是计算，是**认出关系式**：看见两个数就乘，
+  // 因为"乘法"是刚学的，而"求一份是多少"要用除法，反倒被忘了。
+  // 所以每道题都先让他选关系式 —— 选错了错因就落在关系式上，
+  // 不会被记成"算错了"，家长看到的建议也就对得上。
+
+  function familyPriceQty(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var price = spec.price(rng);
+        var qty = spec.qty(rng);
+        var total = price * qty;
+        var ask = spec.ask;
+        var REL = { total: 1, price: 2, qty: 3 };
+
+        var stem, answer, unit, relAnswer, distractors, teach;
+        if (ask === 'total') {
+          stem = '一本笔记本 ' + price + ' 元，买 ' + qty + ' 本一共要多少元？';
+          answer = total; unit = ' 元'; relAnswer = REL.total;
+          distractors = [
+            { value: price + qty, tag: 'QUANTITY_WRONG' },
+            { value: total * 10, tag: 'QUANTITY_WRONG' }
+          ];
+          teach = ['单价 × 数量 = 总价', price + ' × ' + qty + ' = ' + total + '（元）'];
+        } else if (ask === 'price') {
+          stem = '买 ' + qty + ' 本笔记本一共花了 ' + total + ' 元，每本多少元？';
+          answer = price; unit = ' 元'; relAnswer = REL.price;
+          distractors = [
+            { value: total * qty, tag: 'DIV_MUL_REVERSE' },
+            { value: total - qty, tag: 'QUANTITY_WRONG' }
+          ];
+          teach = ['总价 ÷ 数量 = 单价', total + ' ÷ ' + qty + ' = ' + price + '（元）'];
+        } else {
+          stem = '每本笔记本 ' + price + ' 元，带 ' + total + ' 元能买几本？';
+          answer = qty; unit = ' 本'; relAnswer = REL.qty;
+          distractors = [
+            { value: total * price, tag: 'DIV_MUL_REVERSE' },
+            { value: total - price, tag: 'QUANTITY_WRONG' }
+          ];
+          teach = ['总价 ÷ 单价 = 数量', total + ' ÷ ' + price + ' = ' + qty + '（本）'];
+        }
+
+        return {
+          stem: stem,
+          steps: [
+            {
+              id: 'relation', tier: 1, type: 'choice',
+              prompt: '这道题用哪个关系式？',
+              answer: relAnswer,
+              options: shuffle(rng, [
+                { value: 1, label: '单价 × 数量 = 总价', tag: ask === 'total' ? null : 'RELATION_REVERSE' },
+                { value: 2, label: '总价 ÷ 数量 = 单价', tag: ask === 'price' ? null : 'RELATION_REVERSE' },
+                { value: 3, label: '总价 ÷ 单价 = 数量', tag: ask === 'qty' ? null : 'RELATION_REVERSE' }
+              ]),
+              hint: '先看要求的是哪一个量，再选关系式。',
+              teach: teach
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '答案是多少' + unit + '？',
+              answer: answer,
+              distractors: dedupeDistractors(answer, distractors),
+              hint: '按你选的那个关系式算。',
+              teach: teach
+            }
+          ],
+          facts: { kind: 'price-qty', ask: ask, price: price, qty: qty, total: total, expect: answer }
+        };
+      }
+    };
+  }
+
+  function familySpeedTime(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var v = spec.speed(rng);
+        var t = spec.hours(rng);
+        var s = v * t;
+        var ask = spec.ask;
+        var REL = { dist: 1, speed: 2, time: 3 };
+        var needConvert = spec.convert || false;
+
+        // 需要换算的题型（速度按"每小时"给，时间却给"分钟"）：
+        // 这一类的错因几乎全是"没换单位就直接乘"，单独做成一个变体。
+        var minutes = t * 60;
+
+        var stem, answer, unit, relAnswer, distractors, teach, extraStep = null;
+        if (ask === 'dist') {
+          stem = needConvert
+            ? '一辆车每小时行 ' + v + ' 千米，行了 ' + minutes + ' 分钟，一共行了多少千米？'
+            : '一辆车每小时行 ' + v + ' 千米，行了 ' + t + ' 小时，一共行了多少千米？';
+          answer = s; unit = ' 千米'; relAnswer = REL.dist;
+          distractors = needConvert
+            ? [{ value: v * minutes, tag: 'UNIT_MISMATCH' }]
+            : [{ value: v + t, tag: 'QUANTITY_WRONG' }, { value: s + v, tag: 'QUANTITY_WRONG' }];
+          teach = ['速度 × 时间 = 路程'];
+          teach.push(needConvert
+            ? minutes + ' 分钟 = ' + t + ' 小时，' + v + ' × ' + t + ' = ' + s + '（千米）'
+            : v + ' × ' + t + ' = ' + s + '（千米）');
+        } else if (ask === 'speed') {
+          stem = '一辆车 ' + t + ' 小时行了 ' + s + ' 千米，平均每小时行多少千米？';
+          answer = v; unit = ' 千米/时'; relAnswer = REL.speed;
+          distractors = [
+            { value: s * t, tag: 'DIV_MUL_REVERSE' },
+            { value: s - t, tag: 'QUANTITY_WRONG' }
+          ];
+          teach = ['路程 ÷ 时间 = 速度', s + ' ÷ ' + t + ' = ' + v + '（千米/时）'];
+        } else {
+          stem = '一辆车每小时行 ' + v + ' 千米，行 ' + s + ' 千米需要多少小时？';
+          answer = t; unit = ' 小时'; relAnswer = REL.time;
+          distractors = [
+            { value: s * v, tag: 'DIV_MUL_REVERSE' },
+            { value: s - v, tag: 'QUANTITY_WRONG' }
+          ];
+          teach = ['路程 ÷ 速度 = 时间', s + ' ÷ ' + v + ' = ' + t + '（小时）'];
+        }
+
+        if (needConvert) {
+          extraStep = {
+            id: 'convert', tier: 2, type: 'number',
+            prompt: minutes + ' 分钟 = ? 小时',
+            answer: t, distractors: [{ value: minutes, tag: 'UNIT_MISMATCH' }],
+            hint: '1 小时 = 60 分钟，分钟换成小时要除以 60。',
+            teach: [minutes + ' ÷ 60 = ' + t + '（小时）']
+          };
+        }
+
+        var steps = [];
+        if (extraStep) steps.push(extraStep);
+        steps.push({
+          id: 'relation', tier: 1, type: 'choice',
+          prompt: '这道题用哪个关系式？',
+          answer: relAnswer,
+          options: shuffle(rng, [
+            { value: 1, label: '速度 × 时间 = 路程', tag: ask === 'dist' ? null : 'RELATION_REVERSE' },
+            { value: 2, label: '路程 ÷ 时间 = 速度', tag: ask === 'speed' ? null : 'RELATION_REVERSE' },
+            { value: 3, label: '路程 ÷ 速度 = 时间', tag: ask === 'time' ? null : 'RELATION_REVERSE' }
+          ]),
+          hint: '先看要求的是哪一个量。',
+          teach: teach
+        });
+        steps.push({
+          id: 'final', tier: 0, type: 'number',
+          prompt: '答案是多少' + unit + '？',
+          answer: answer,
+          distractors: dedupeDistractors(answer, distractors),
+          hint: '速度和时间的单位要对上，再套关系式。',
+          teach: teach
+        });
+
+        return {
+          stem: stem,
+          steps: steps,
+          facts: { kind: 'speed-time', ask: ask, v: v, t: t, s: s, expect: answer }
+        };
+      }
+    };
+  }
+
+  /* ============================ 第六单元 长方形、正方形的面积 ============================ */
+  // 这一单元有两个坑，题目是照着坑设计的：
+  //  1. **面积和周长分不清** —— 干扰项里一定放一个"周长"的答案，
+  //     选了它错因就是 AREA_PERIMETER，而不是笼统的"算错了"。
+  //  2. **面积单位进率是 100 不是 10** —— 长度单位刚学完（进率 10），
+  //     孩子会顺手把 100 写成 10，所以干扰项里也一定放一个"差 10 倍"的值。
+
+  function familyAreaUnit(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var rate = spec.rate;                 // 100 或 10000
+        var k = pickInt(rng, spec.kMin, spec.kMax);
+        var answer, stem, distractors;
+        if (spec.reverse) {
+          // 小单位 → 大单位：除以进率
+          answer = k;
+          stem = (k * rate) + ' ' + spec.to + ' = （　）' + spec.from;
+          distractors = [
+            { value: k * rate * rate, tag: 'UNIT_CONVERT_DIR' },
+            { value: k * 10, tag: 'AREA_UNIT_RATE' }
+          ];
+        } else {
+          answer = k * rate;
+          stem = k + ' ' + spec.from + ' = （　）' + spec.to;
+          distractors = [
+            { value: k * 10, tag: 'AREA_UNIT_RATE' },
+            { value: Math.max(1, Math.round(k / 10)), tag: 'UNIT_CONVERT_DIR' }
+          ];
+        }
+        return {
+          stem: stem,
+          steps: [
+            {
+              id: 'rate', tier: 1, type: 'choice',
+              prompt: spec.from + ' 和 ' + spec.to + ' 之间的进率是多少？',
+              answer: rate,
+              options: shuffle(rng, [
+                { value: 10, label: '10', tag: 'AREA_UNIT_RATE' },
+                { value: 100, label: '100', tag: rate === 100 ? null : 'AREA_UNIT_RATE' },
+                { value: 10000, label: '10000', tag: rate === 10000 ? null : 'AREA_UNIT_RATE' }
+              ]),
+              hint: '面积单位的进率是"长度进率的平方"：10 × 10 = 100。',
+              teach: ['1 ' + spec.from + ' = ' + rate + ' ' + spec.to]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '括号里填多少？',
+              answer: answer,
+              distractors: dedupeDistractors(answer, distractors),
+              hint: spec.reverse ? '小单位换大单位要除以进率。' : '大单位换小单位要乘进率。',
+              teach: [
+                '1 ' + spec.from + ' = ' + rate + ' ' + spec.to,
+                (spec.reverse ? (k * rate) + ' ÷ ' + rate : k + ' × ' + rate) + ' = ' + answer
+              ]
+            }
+          ],
+          facts: { kind: 'area-unit', rate: rate, k: k, expect: answer }
+        };
+      }
+    };
+  }
+
+  function familyRectArea(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = spec.long(rng);
+        var b = spec.wide(rng);
+        var area = a * b;
+        var perimeter = (a + b) * 2;
+        var ask = spec.ask;   // 'area' | 'side'
+        var answer, stem, distractors, unit;
+
+        if (ask === 'side') {
+          // 已知面积和一条边，求另一条边：面积 ÷ 宽
+          answer = a; unit = ' 厘米';
+          stem = '一个长方形的面积是 ' + area + ' 平方厘米，宽是 ' + b + ' 厘米，长是多少厘米？';
+          distractors = [
+            { value: area * b, tag: 'DIV_MUL_REVERSE' },
+            { value: area - b, tag: 'QUANTITY_WRONG' }
+          ];
+        } else {
+          answer = area; unit = ' 平方厘米';
+          stem = '一个长方形长 ' + a + ' 厘米，宽 ' + b + ' 厘米，它的面积是多少平方厘米？';
+          distractors = [
+            { value: perimeter, tag: 'AREA_PERIMETER' },
+            { value: a + b, tag: 'AREA_PERIMETER' }
+          ];
+        }
+
+        return {
+          stem: stem,
+          steps: [
+            {
+              id: 'which', tier: 1, type: 'choice',
+              prompt: '这道题要用哪个公式？',
+              answer: ask === 'side' ? 2 : 1,
+              options: shuffle(rng, [
+                { value: 1, label: '面积 = 长 × 宽', tag: ask === 'side' ? 'RELATION_REVERSE' : null },
+                { value: 2, label: '长 = 面积 ÷ 宽', tag: ask === 'side' ? null : 'RELATION_REVERSE' },
+                { value: 3, label: '周长 = （长 + 宽）× 2', tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '先确认题目问的是面积还是周长。',
+              teach: ['长方形的面积 = 长 × 宽']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '答案是多少' + unit + '？',
+              answer: answer,
+              distractors: dedupeDistractors(answer, distractors),
+              hint: '面积用"长 × 宽"，别做成周长。',
+              teach: ask === 'side'
+                ? ['面积 ÷ 宽 = 长', area + ' ÷ ' + b + ' = ' + a + '（厘米）']
+                : ['长 × 宽 = 面积', a + ' × ' + b + ' = ' + area + '（平方厘米）']
+            }
+          ],
+          facts: { kind: 'rect-area', a: a, b: b, area: area, expect: answer }
+        };
+      }
+    };
+  }
+
+  function familySquareArea(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var s = spec.side(rng);
+        var area = s * s;
+        return {
+          stem: '一个正方形的边长是 ' + s + ' 厘米，它的面积是多少平方厘米？',
+          steps: [
+            {
+              id: 'which', tier: 1, type: 'choice',
+              prompt: '正方形的面积怎么算？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '边长 × 边长', tag: null },
+                { value: 2, label: '边长 × 2', tag: 'SIDE_SQUARE_CONFUSE' },
+                { value: 3, label: '边长 × 4', tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '边长 × 4 那是周长。面积是"铺满有多大"。',
+              teach: ['正方形的面积 = 边长 × 边长']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '面积是多少平方厘米？',
+              answer: area,
+              distractors: dedupeDistractors(area, [
+                { value: s * 2, tag: 'SIDE_SQUARE_CONFUSE' },
+                { value: s * 4, tag: 'AREA_PERIMETER' }
+              ]),
+              hint: s + ' × ' + s + '，不是 ' + s + ' × 2。',
+              teach: [s + ' × ' + s + ' = ' + area + '（平方厘米）']
+            }
+          ],
+          facts: { kind: 'square-area', s: s, area: area, expect: area }
+        };
+      }
+    };
+  }
+
+  /* ============================ 第七单元 条形统计图 ============================ */
+  // 这是全册唯一一个"读图"的知识点，题目形态和前面都不一样：
+  // 数据不是算出来的，是**从图上看出来的**。所以图形数据（figure）跟着题目走，
+  // 由界面照着画出来 —— 引擎这边只负责保证"图上标的数"和"正确答案"是同一份。
+  //
+  // 刻意让每项的格数互不相同：出现并列时"哪个最多"就有两个正确答案，
+  // 那不是孩子的错，是题目出错了。
+
+  function familyBarChart(spec) {
+    var NAMES = ['苹果', '香蕉', '橘子', '梨', '葡萄', '桃子'];
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var unitPerCell = spec.unitPerCell(rng);
+        var n = spec.itemCount || 4;
+        var picked = shuffle(rng, NAMES).slice(0, n);
+
+        // 格数不重复，保证"最多""最少"都唯一
+        var pool = [];
+        for (var c = spec.cellsMin; c <= spec.cellsMax; c++) pool.push(c);
+        var chosen = shuffle(rng, pool).slice(0, n);
+
+        var items = picked.map(function (name, i) {
+          return { label: name, cells: chosen[i], value: chosen[i] * unitPerCell };
+        });
+
+        var maxIdx = 0, minIdx = 0;
+        items.forEach(function (it, i) {
+          if (it.value > items[maxIdx].value) maxIdx = i;
+          if (it.value < items[minIdx].value) minIdx = i;
+        });
+        var total = items.reduce(function (s, it) { return s + it.value; }, 0);
+        var ask = spec.ask;
+
+        var finalStep;
+        if (ask === 'max') {
+          finalStep = {
+            id: 'final', tier: 0, type: 'choice',
+            prompt: '哪一种最多？',
+            answer: maxIdx + 1,
+            options: shuffle(rng, items.map(function (it, i) {
+              return { value: i + 1, label: it.label, tag: i === maxIdx ? null : 'COMPARE_WRONG' };
+            })),
+            hint: '找最高的那根，再看它对应横轴上哪一栏。',
+            teach: ['最高的是「' + items[maxIdx].label + '」，' +
+              items[maxIdx].cells + ' 格 × ' + unitPerCell + ' = ' + items[maxIdx].value + ' 个']
+          };
+        } else if (ask === 'diff') {
+          var diff = items[maxIdx].value - items[minIdx].value;
+          finalStep = {
+            id: 'final', tier: 0, type: 'number',
+            prompt: '最多的比最少的多多少个？',
+            answer: diff,
+            distractors: dedupeDistractors(diff, [
+              { value: items[maxIdx].cells - items[minIdx].cells, tag: 'READ_VALUE_WRONG' },
+              { value: items[maxIdx].value + items[minIdx].value, tag: 'COMPARE_WRONG' }
+            ]),
+            hint: '先分别算出最多和最少各多少个，再相减。',
+            teach: [
+              '最多：' + items[maxIdx].label + ' ' + items[maxIdx].value + ' 个',
+              '最少：' + items[minIdx].label + ' ' + items[minIdx].value + ' 个',
+              '相差：' + items[maxIdx].value + ' − ' + items[minIdx].value + ' = ' + diff
+            ]
+          };
+        } else if (ask === 'sum') {
+          finalStep = {
+            id: 'final', tier: 0, type: 'number',
+            prompt: '这 ' + n + ' 种一共多少个？',
+            answer: total,
+            distractors: dedupeDistractors(total, [
+              { value: items.reduce(function (s, it) { return s + it.cells; }, 0), tag: 'READ_VALUE_WRONG' },
+              { value: total - items[minIdx].value, tag: 'SUM_WRONG' }
+            ]),
+            hint: '每一项都要算进去，一项一项加，别漏。',
+            teach: [
+              items.map(function (it) { return it.label + ' ' + it.value; }).join('，'),
+              '一共 ' + total + ' 个'
+            ]
+          };
+        } else {
+          var target = items[0];
+          finalStep = {
+            id: 'final', tier: 0, type: 'number',
+            prompt: '「' + target.label + '」有多少个？',
+            answer: target.value,
+            distractors: dedupeDistractors(target.value, [
+              { value: target.cells, tag: 'READ_VALUE_WRONG' },
+              { value: target.value + unitPerCell, tag: 'READ_VALUE_WRONG' }
+            ]),
+            hint: '先看「' + target.label + '」的条形有几格，再乘每格代表的数量。',
+            teach: [target.cells + ' 格 × ' + unitPerCell + ' = ' + target.value + '（个）']
+          };
+        }
+
+        return {
+          stem: '看图回答下面的问题（一共 ' + n + ' 种）。',
+          figure: { type: 'bar', unitPerCell: unitPerCell, items: items },
+          steps: [
+            {
+              id: 'scale', tier: 1, type: 'number',
+              prompt: '纵轴上一格代表多少个？',
+              answer: unitPerCell,
+              distractors: dedupeDistractors(unitPerCell, [
+                { value: unitPerCell * 10, tag: 'AXIS_SCALE_WRONG' },
+                { value: unitPerCell === 1 ? 2 : 1, tag: 'AXIS_SCALE_WRONG' }
+              ]),
+              hint: '看纵轴上相邻两个刻度相差多少。这一格看错，后面全错。',
+              teach: ['一格 = ' + unitPerCell + ' 个']
+            },
+            finalStep
+          ],
+          facts: { kind: 'bar-chart', ask: ask, unitPerCell: unitPerCell, expect: finalStep.answer }
+        };
+      }
+    };
+  }
+
+  /* ============================ 第四单元 估算的应用题 ============================ */
+  // 原来的估算题是"48 × 19 ≈ ?"，孩子会老老实实算出 912 再写上去 ——
+  // 那不是估算，是精算。放到"买东西大约花多少"这种真实场景里，
+  // 他就没法精算（也不需要），只能用凑整。
+  function familyEstimateApply(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = spec.a(rng);                       // 每箱的数量
+        var b = spec.b(rng);                       // 箱数
+        var aR = Math.round(a / 10) * 10;
+        var bR = Math.round(b / 10) * 10;
+        var estimate = aR * bR;
+        var exact = a * b;
+
+        return {
+          stem: '学校买 ' + b + ' 箱粉笔，每箱 ' + a + ' 支，大约一共多少支？',
+          steps: [
+            {
+              id: 'round', tier: 1, type: 'choice',
+              prompt: '估算时这两个数分别看成多少？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: aR + ' 和 ' + bR, tag: null },
+                { value: 2, label: a + ' 和 ' + bR, tag: 'HALF_ROUNDED' },
+                { value: 3, label: aR + ' 和 ' + b, tag: 'HALF_ROUNDED' }
+              ]),
+              hint: '估算要**两个**数都凑成整十数，只凑一个结果会偏。',
+              teach: [a + ' ≈ ' + aR + '，' + b + ' ≈ ' + bR]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '大约一共多少支？',
+              answer: estimate,
+              distractors: dedupeDistractors(estimate, [
+                { value: exact, tag: 'EXACT_NOT_ESTIMATE' },
+                { value: a * bR, tag: 'HALF_ROUNDED' },
+                { value: aR * b, tag: 'HALF_ROUNDED' }
+              ]),
+              hint: '用凑整后的两个整十数相乘。题目问"大约"，不用算精确值。',
+              teach: [aR + ' × ' + bR + ' = ' + estimate + '（支）']
+            }
+          ],
+          facts: { kind: 'estimate-apply', isEstimate: true, a: a, b: b, answer: estimate }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -1110,6 +1857,271 @@
     {
       family: familyTriangleMake, id: 'T-0204-B', kp: 'M4A-02-04', difficulty: 0.55,
       shape: '一副三角尺能拼出哪个角', method: 'M-WHOLE-ANGLE'
+    },
+
+    // ==================================================================
+    // 下面这批是补齐单元时加的。
+    //
+    // 同时它们也解决了另一件事：**同一个知识点有了不同难度的模板**。
+    // 难度自适应（engine.js 的 difficultyShift）是靠"换模板"实现的，
+    // 一个知识点只有两个模板、难度还挨着，升档降档就没东西可选 ——
+    // 那一档自适应等于没做。所以扩容不是凑数，是自适应的前提。
+    // ==================================================================
+
+    // ---- 04-01 补足两个难度档（原来只有 2 个）----
+    {
+      family: familyBothZeros, id: 'T-0401-C', kp: 'M4A-04-01', difficulty: 0.34,
+      shape: '整十 × 整百', method: 'M-COUNT-ZERO',
+      aCore: function (rng) { return pickInt(rng, 2, 9); },
+      bCore: function (rng) { return pickInt(rng, 2, 9); },
+      aZeros: 1, bZeros: 2
+    },
+    {
+      family: familyBothZeros, id: 'T-0401-D', kp: 'M4A-04-01', difficulty: 0.46,
+      shape: '整百 × 整百', method: 'M-COUNT-ZERO',
+      aCore: function (rng) { return pickInt(rng, 2, 9); },
+      bCore: function (rng) { return pickInt(rng, 2, 9); },
+      aZeros: 2, bZeros: 2
+    },
+
+    // ---- 04-03 因数中间有 0 的乘法（原来登记了没做）----
+    {
+      family: familyMiddleZero, id: 'T-0403-A', kp: 'M4A-04-03', difficulty: 0.56,
+      shape: '三位数（中间是 0）× 两位数', method: 'M-SPLIT'
+    },
+    {
+      family: familyMiddleZero, id: 'T-0403-B', kp: 'M4A-04-03', difficulty: 0.64,
+      shape: '三位数（中间是 0）× 两位数（较大的乘数）', method: 'M-SPLIT'
+    },
+
+    // ---- 04-06 估算：补两个应用题形态（原来只有"直接估算"）----
+    {
+      family: familyEstimateApply, id: 'T-0406-C', kp: 'M4A-04-06', difficulty: 0.45,
+      // 两个数都从 30 起：14 凑成 10 要丢掉近三成，两个数一起凑偏得更多，
+      // 那估算值就失去"用来检验精算"的意义了。
+      shape: '估算应用题（整十数凑整）', method: 'M-ESTIMATE',
+      a: function (rng) { return pickEstimateNum(rng, 30, 90); },
+      b: function (rng) { return pickEstimateNum(rng, 30, 49); }
+    },
+    {
+      family: familyEstimateApply, id: 'T-0406-D', kp: 'M4A-04-06', difficulty: 0.58,
+      shape: '估算应用题（三位数 × 两位数）', method: 'M-ESTIMATE',
+      a: function (rng) { return pickEstimateNum(rng, 100, 480); },
+      b: function (rng) { return pickEstimateNum(rng, 30, 49); }
+    },
+
+    // ---- 01-05 改写：补两个难度档 ----
+    {
+      family: familyRewrite, id: 'T-0105-C', kp: 'M4A-01-05', difficulty: 0.50,
+      shape: '整万数改写成"万"（万位是三位数）', method: 'M-CHANGE-UNIT',
+      unitName: '万', dropZeros: 4, kMin: 100, kMax: 999
+    },
+    {
+      family: familyRewrite, id: 'T-0105-D', kp: 'M4A-01-05', difficulty: 0.58,
+      shape: '整亿数改写成"亿"（亿位是三位数）', method: 'M-CHANGE-UNIT',
+      unitName: '亿', dropZeros: 8, kMin: 100, kMax: 999
+    },
+
+    // ---- 01-06 近似数：补两个难度档 ----
+    {
+      family: familyRound, id: 'T-0106-C', kp: 'M4A-01-06', difficulty: 0.60,
+      shape: '省略万位后面的尾数（万位是三位数）', method: 'M-LOOK-NEXT',
+      unitName: '万', unitPow: 10000, lookName: '千位', nextName: '百位', wMin: 100, wMax: 999
+    },
+    {
+      family: familyRound, id: 'T-0106-D', kp: 'M4A-01-06', difficulty: 0.68,
+      shape: '省略亿位后面的尾数（亿位是三位数）', method: 'M-LOOK-NEXT',
+      unitName: '亿', unitPow: 100000000, lookName: '千万位', nextName: '百万位', wMin: 100, wMax: 999
+    },
+
+    // ---- 02-02 / 02-03 / 02-04 各补足到 4 个 ----
+    {
+      family: familyAngleClassify, id: 'T-0202-D', kp: 'M4A-02-02', difficulty: 0.46,
+      shape: '看图判断角的类型（偏难的一批角）', method: 'M-ANGLE-TYPE',
+      figure: true,
+      pickDeg: function (rng) {
+        var pool = [1, 15, 88, 92, 135, 175];
+        return pool[pickInt(rng, 0, pool.length - 1)];
+      }
+    },
+    {
+      family: familyAngleSplit, id: 'T-0203-C', kp: 'M4A-02-03', difficulty: 0.42,
+      shape: '直角分成两个角', method: 'M-WHOLE-ANGLE',
+      whole: 90, xMin: 10, xMax: 80
+    },
+    {
+      family: familyAngleSplit, id: 'T-0203-D', kp: 'M4A-02-03', difficulty: 0.62,
+      shape: '周角分成两个角（跨度更大）', method: 'M-WHOLE-ANGLE',
+      whole: 360, xMin: 100, xMax: 300
+    },
+    {
+      family: familyAngleRelation, id: 'T-0204-C', kp: 'M4A-02-04', difficulty: 0.50,
+      shape: '周角 / 平角 / 直角的换算', method: 'M-WHOLE-ANGLE'
+    },
+    {
+      family: familyTriangleMake, id: 'T-0204-D', kp: 'M4A-02-04', difficulty: 0.62,
+      shape: '一副三角尺能拼出哪个角', method: 'M-WHOLE-ANGLE'
+    },
+
+    // ---- 03-01 第三单元 相交与平行 ----
+    {
+      family: familyPerpJudge, id: 'T-0301-A', kp: 'M4A-03-01', difficulty: 0.38,
+      shape: '判断是否互相垂直', method: 'M-PERP'
+    },
+    {
+      family: familyPerpJudge, id: 'T-0301-B', kp: 'M4A-03-01', difficulty: 0.44,
+      shape: '判断是否互相垂直（易混的角）', method: 'M-PERP'
+    },
+    {
+      family: familyParallelJudge, id: 'T-0301-C', kp: 'M4A-03-01', difficulty: 0.42,
+      shape: '判断是否互相平行', method: 'M-PARALLEL'
+    },
+    {
+      family: familyPerpDistance, id: 'T-0301-D', kp: 'M4A-03-01', difficulty: 0.55,
+      shape: '点到直线的距离', method: 'M-PERP'
+    },
+
+    // ---- 05-01 第五单元 单价 × 数量 = 总价 ----
+    {
+      family: familyPriceQty, id: 'T-0501-A', kp: 'M4A-05-01', difficulty: 0.40,
+      shape: '已知单价和数量求总价（口算）', method: 'M-QUANTITY',
+      ask: 'total',
+      price: function (rng) { return pickInt(rng, 2, 9); },
+      qty: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familyPriceQty, id: 'T-0501-B', kp: 'M4A-05-01', difficulty: 0.52,
+      shape: '已知单价和数量求总价（笔算）', method: 'M-QUANTITY',
+      ask: 'total',
+      price: function (rng) { return pickCore(rng, 12, 48); },
+      qty: function (rng) { return pickInt(rng, 3, 9); }
+    },
+    {
+      family: familyPriceQty, id: 'T-0501-C', kp: 'M4A-05-01', difficulty: 0.50,
+      shape: '已知总价和数量求单价', method: 'M-QUANTITY',
+      ask: 'price',
+      price: function (rng) { return pickInt(rng, 3, 9); },
+      qty: function (rng) { return pickInt(rng, 4, 12); }
+    },
+    {
+      family: familyPriceQty, id: 'T-0501-D', kp: 'M4A-05-01', difficulty: 0.55,
+      shape: '已知总价和单价求数量', method: 'M-QUANTITY',
+      ask: 'qty',
+      price: function (rng) { return pickInt(rng, 4, 12); },
+      qty: function (rng) { return pickInt(rng, 3, 9); }
+    },
+
+    // ---- 05-02 第五单元 速度 × 时间 = 路程 ----
+    {
+      family: familySpeedTime, id: 'T-0502-A', kp: 'M4A-05-02', difficulty: 0.45,
+      shape: '已知速度和时间求路程', method: 'M-QUANTITY',
+      ask: 'dist',
+      speed: function (rng) { return pickInt(rng, 30, 90); },
+      hours: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familySpeedTime, id: 'T-0502-B', kp: 'M4A-05-02', difficulty: 0.52,
+      shape: '已知路程和时间求速度', method: 'M-QUANTITY',
+      ask: 'speed',
+      speed: function (rng) { return pickInt(rng, 30, 90); },
+      hours: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familySpeedTime, id: 'T-0502-C', kp: 'M4A-05-02', difficulty: 0.55,
+      shape: '已知路程和速度求时间', method: 'M-QUANTITY',
+      ask: 'time',
+      speed: function (rng) { return pickInt(rng, 30, 90); },
+      hours: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familySpeedTime, id: 'T-0502-D', kp: 'M4A-05-02', difficulty: 0.62,
+      shape: '求路程（时间给的是分钟，要先换算）', method: 'M-QUANTITY',
+      ask: 'dist', convert: true,
+      speed: function (rng) { return pickInt(rng, 40, 90); },
+      hours: function (rng) { return pickInt(rng, 2, 6); }
+    },
+
+    // ---- 06-01 第六单元 长方形面积 ----
+    {
+      family: familyRectArea, id: 'T-0601-A', kp: 'M4A-06-01', difficulty: 0.40,
+      shape: '已知长和宽求面积（口算）', method: 'M-AREA-RECT',
+      ask: 'area',
+      long: function (rng) { return pickInt(rng, 3, 9); },
+      wide: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familyRectArea, id: 'T-0601-B', kp: 'M4A-06-01', difficulty: 0.52,
+      shape: '已知长和宽求面积（笔算）', method: 'M-AREA-RECT',
+      ask: 'area',
+      long: function (rng) { return pickInt(rng, 12, 35); },
+      wide: function (rng) { return pickCore(rng, 3, 9); }
+    },
+    {
+      family: familyRectArea, id: 'T-0601-C', kp: 'M4A-06-01', difficulty: 0.58,
+      shape: '已知面积和一条边求另一条边', method: 'M-AREA-RECT',
+      ask: 'side',
+      long: function (rng) { return pickInt(rng, 6, 18); },
+      wide: function (rng) { return pickInt(rng, 3, 9); }
+    },
+
+    // ---- 06-02 第六单元 正方形面积 ----
+    {
+      family: familySquareArea, id: 'T-0602-A', kp: 'M4A-06-02', difficulty: 0.38,
+      shape: '已知边长求正方形面积（口算）', method: 'M-AREA-RECT',
+      side: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familySquareArea, id: 'T-0602-B', kp: 'M4A-06-02', difficulty: 0.50,
+      shape: '已知边长求正方形面积（笔算）', method: 'M-AREA-RECT',
+      side: function (rng) { return pickInt(rng, 10, 25); }
+    },
+
+    // ---- 06-04 第六单元 面积单位换算 ----
+    {
+      family: familyAreaUnit, id: 'T-0604-A', kp: 'M4A-06-04', difficulty: 0.48,
+      shape: '平方米 → 平方分米', method: 'M-UNIT-100',
+      from: '平方米', to: '平方分米', rate: 100, reverse: false, kMin: 2, kMax: 9
+    },
+    {
+      family: familyAreaUnit, id: 'T-0604-B', kp: 'M4A-06-04', difficulty: 0.52,
+      shape: '平方分米 → 平方厘米', method: 'M-UNIT-100',
+      from: '平方分米', to: '平方厘米', rate: 100, reverse: false, kMin: 2, kMax: 9
+    },
+    {
+      family: familyAreaUnit, id: 'T-0604-C', kp: 'M4A-06-04', difficulty: 0.60,
+      shape: '平方分米 → 平方米（反过来）', method: 'M-UNIT-100',
+      from: '平方米', to: '平方分米', rate: 100, reverse: true, kMin: 2, kMax: 9
+    },
+    {
+      family: familyAreaUnit, id: 'T-0604-D', kp: 'M4A-06-04', difficulty: 0.66,
+      shape: '平方米 → 平方厘米（跨一级）', method: 'M-UNIT-100',
+      from: '平方米', to: '平方厘米', rate: 10000, reverse: false, kMin: 2, kMax: 9
+    },
+
+    // ---- 07-01 第七单元 条形统计图 ----
+    {
+      family: familyBarChart, id: 'T-0701-A', kp: 'M4A-07-01', difficulty: 0.42,
+      shape: '读条形图：某一项是多少', method: 'M-READ-CHART',
+      ask: 'value', itemCount: 4, cellsMin: 1, cellsMax: 8,
+      unitPerCell: function (rng) { return pickInt(rng, 1, 2); }
+    },
+    {
+      family: familyBarChart, id: 'T-0701-B', kp: 'M4A-07-01', difficulty: 0.46,
+      shape: '读条形图：哪一种最多', method: 'M-READ-CHART',
+      ask: 'max', itemCount: 4, cellsMin: 1, cellsMax: 8,
+      unitPerCell: function (rng) { return pickInt(rng, 2, 5); }
+    },
+    {
+      family: familyBarChart, id: 'T-0701-C', kp: 'M4A-07-01', difficulty: 0.56,
+      shape: '读条形图：最多的比最少的多多少', method: 'M-READ-CHART',
+      ask: 'diff', itemCount: 5, cellsMin: 1, cellsMax: 9,
+      unitPerCell: function (rng) { return pickInt(rng, 2, 5); }
+    },
+    {
+      family: familyBarChart, id: 'T-0701-D', kp: 'M4A-07-01', difficulty: 0.62,
+      shape: '读条形图：一共多少个', method: 'M-READ-CHART',
+      ask: 'sum', itemCount: 4, cellsMin: 1, cellsMax: 8,
+      unitPerCell: function (rng) { return pickInt(rng, 2, 5); }
     }
   ];
 
