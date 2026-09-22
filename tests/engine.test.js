@@ -321,6 +321,31 @@ test('每道题都必须有带数字的题干，不能让孩子直接面对孤�
   });
 });
 
+test('角的拆分：题干的整角名称必须和实际整角一致', () => {
+  // 这条是回归测试。原来 familyAngleSplit 用"不是平角就是周角"的二选一拼题干，
+  // 直角（90°）被错标成"周角"，于是题目问"周角是多少度"、答案却是 90，
+  // 孩子答 360 反被判错 —— 而当时 55 条测试一条都没拦住，因为没人检查
+  // "题干里的名称"和"答案的数值"是否对得上。现在补上。
+  const NAMES = { 360: '周角', 180: '平角', 90: '直角' };
+  const tpls = Templates.TEMPLATES.filter(t => /^T-0203-/.test(t.id));
+  assert.ok(tpls.length >= 3, '应当同时有直角 / 平角 / 周角三种拆分题');
+
+  tpls.forEach(tpl => {
+    for (let i = 0; i < 200; i++) {
+      const q = Engine.buildQuestion(tpl, rngFor(i + 1), 2);
+      const f = q.facts;
+      assert.strictEqual(f.kind, 'angle-split', `${tpl.id} 不是拆分题`);
+      const name = NAMES[f.whole];
+      assert.ok(name, `${tpl.id} 的整角是 ${f.whole}°，没有对应名称`);
+      assert.ok(q.stem.indexOf(name) >= 0,
+        `${tpl.id} 题干写的是「${q.stem}」，但整角其实是 ${f.whole}°（${name}）`);
+      const step = q.allSteps[0];
+      assert.strictEqual(step.answer, f.whole,
+        `${tpl.id} 问"整角是多少度"，答案却是 ${step.answer}（应为 ${f.whole}）`);
+    }
+  });
+});
+
 test('角的分类：180° 被选成钝角时要认出是"把平角当钝角"', () => {
   // 教材同步资料里"易错点 TOP 8"第 3 条就是"认为 180° 是钝角"。
   // 这类题的错因要看"正确答案 + 选了什么"这一对，所以得逐选项验。

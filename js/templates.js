@@ -837,6 +837,12 @@
   }
 
   // 族 I：角的计算 —— 整角分成两块，已知一块求另一块
+  // 整角名称必须查表。
+  // 原来是"不是平角就是周角"的二选一，于是 whole=90（直角）时题干被拼成
+  // "周角是多少度？"、答案却是 90 —— 孩子答 360 反被判错，还被告知"正确答案 90"。
+  // 直角也是整角，二选一在这里是错的。
+  var WHOLE_ANGLE_NAME = { 360: '周角', 180: '平角', 90: '直角' };
+
   function familyAngleSplit(spec) {
     return {
       id: spec.id,
@@ -845,25 +851,27 @@
       shape: spec.shape,
       method: spec.method,
       gen: function (rng) {
-        var whole = spec.whole;                        // 180 或 360
+        var whole = spec.whole;                        // 90 / 180 / 360
+        var wholeName = WHOLE_ANGLE_NAME[whole] || (whole + '°的角');
         var x = pickInt(rng, spec.xMin, spec.xMax);    // 已知的那一块
         var rest = whole - x;
-        var other = whole === 180 ? 360 : 180;         // 最常认错的那个整角
+        // 最常和它认错的那个整角
+        var other = whole === 90 ? 180 : (whole === 360 ? 180 : 360);
 
         return {
-          stem: '一个' + (whole === 180 ? '平角' : '周角') + '被分成两个角，其中一个是 ' + x + '°。',
+          stem: '一个' + wholeName + '被分成两个角，其中一个是 ' + x + '°。',
           steps: [
             {
               id: 'whole',
               tier: 1,
               type: 'choice',
-              prompt: (whole === 180 ? '平角' : '周角') + '是多少度？',
+              prompt: wholeName + '是多少度？',
               answer: whole,
-              options: shuffle(rng, [180, 360, 90].map(function (v) {
+              options: shuffle(rng, [90, 180, 360].map(function (v) {
                 return { value: v, label: v + '°', tag: v === whole ? null : 'WHOLE_ANGLE_WRONG' };
               })),
               hint: '1 周角 = 2 平角 = 4 直角，直角是 90°。',
-              teach: [(whole === 180 ? '平角' : '周角') + '是 ' + whole + '°']
+              teach: [wholeName + '是 ' + whole + '°']
             },
             {
               id: 'rest',
