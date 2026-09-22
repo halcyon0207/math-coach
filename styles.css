@@ -381,13 +381,9 @@ html, body {
 @media (max-width: 1039px) {
   .view-practice { padding-bottom: 24px; }
 
-  .col-side {
-    margin-top: 12px;
-    background: var(--card);
-    border: 1.5px solid var(--line);
-    border-radius: 14px;
-    padding: 14px 14px 16px;
-  }
+  /* 作答区自己不画框：里面的 .workzone 已经是一圈蓝框了，
+     外面再套一圈灰框会变成"框里还有个框"，更像弹出来的窗口。 */
+  .col-side { margin-top: 12px; }
   .q-tools { margin-top: 8px; }
   .ruler-card { margin-top: 8px; }
 
