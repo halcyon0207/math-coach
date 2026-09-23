@@ -887,3 +887,57 @@ test('方法挂在题型上，不是挂在知识点上', () => {
   const q = Engine.buildQuestion(Templates.TEMPLATES[0], rngFor(1), 1);
   assert.strictEqual(q.method, Templates.TEMPLATES[0].method);
 });
+
+/* ==================== 提示不许把答案念出来 ==================== */
+// 第二次答错时系统会自动给一条提示（app.js），所以 hint 不是"孩子主动要点才看"
+// 的东西 —— 它一旦出现，就等于喂到嘴边。如果 hint 直接把答案说出来：
+//   · 这一步的错因探针白放了（选对不再说明他会）
+//   · "提示后正确率"这个区分"不会 / 不仔细"的指标也失效了
+// 规则：hint 里不许出现该步的答案，除非这个数字本来就写在题面上（那是题目给的）。
+test('选择题的提示不许把答案念出来', () => {
+  const hasToken = (s, t) => new RegExp('(?<![0-9])' + t + '(?![0-9])').test(s);
+
+  Templates.TEMPLATES.forEach((tpl, ti) => {
+    for (let i = 0; i < ROUNDS; i++) {
+      const q = Engine.buildQuestion(tpl, rngFor(ti * 700000 + i + 3), 2);
+      q.allSteps.forEach(step => {
+        if (step.type !== 'choice') return;
+        const a = String(step.answer);
+        if (hasToken(step.prompt, a)) return;         // 题面自己给的数字不算
+        assert.ok(!hasToken(step.hint || '', a),
+          `${tpl.id}/${step.id} 的提示直接念出了答案 ${a}：${step.hint}`);
+      });
+    }
+  });
+});
+
+/* ==================== 蒙对概率要跟着选项数走 ==================== */
+// 原来选择题的蒙对率写死 0.25（假设 4 个选项），而实际生成出来的题大多是 2~3 个选项。
+// 于是"蒙对了"被当成"有把握"记账，掌握度虚高，支架会撤早 —— 这正是要避免的那类错。
+test('蒙对概率按实际选项数算，不是写死 0.25', () => {
+  assert.ok(Math.abs(Engine.guessRate('choice', false, 2) - 0.5) < 1e-9, '两个选项应对应 0.5');
+  assert.ok(Math.abs(Engine.guessRate('choice', false, 3) - 1 / 3) < 1e-9, '三个选项应对应 1/3');
+  assert.ok(Math.abs(Engine.guessRate('choice', false, 4) - 0.25) < 1e-9);
+  // 不知道选项数时退回 4 个，别顺手把蒙对率调低
+  assert.ok(Math.abs(Engine.guessRate('choice', false) - 0.25) < 1e-9);
+  // 用了提示就按提示档算，不再区分选项数
+  assert.strictEqual(Engine.guessRate('choice', true, 2), Engine.BKT.P_G_HINTED);
+
+  const p0 = Engine.initialMastery();
+  const asIfFourOptions = Engine.updateMastery(p0, true, 'choice', false, 5, 4);
+  const asIfTwoOptions = Engine.updateMastery(p0, true, 'choice', false, 5, 2);
+  assert.ok(asIfTwoOptions < asIfFourOptions - 0.05,
+    '同样答对，两选项（更容易蒙）不该和四选项一样加分');
+});
+
+/* ==================== 退出练习不该记成答错 ==================== */
+// 引擎这边要能认出"这题根本没作答"：attempts 为 0 的记录不能被当成一次答错。
+test('未作答的记录不会被当成答错写进掌握度', () => {
+  const state = freshState();
+  const before = JSON.stringify(state.mastery);
+  assert.strictEqual(Engine.countsAsAnswer({ attempts: 0 }), false,
+    'attempts 为 0 不算一次作答');
+  assert.strictEqual(Engine.countsAsAnswer({ attempts: 2 }), true);
+  assert.strictEqual(Engine.countsAsAnswer(undefined), false);
+  assert.strictEqual(JSON.stringify(state.mastery), before, '纯检查不应改动 state');
+});

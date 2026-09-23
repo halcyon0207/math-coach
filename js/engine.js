@@ -52,22 +52,34 @@
   var BKT = {
     P_L0: 0.30,   // 初始掌握概率
     P_T: 0.20,    // 每次练习后学会的概率
-    P_G_CHOICE: 0.25, // 选择题蒙对的概率（4 选项）
     P_G_NUMBER: 0.05, // 填空题蒙对的概率
     P_G_HINTED: 0.40, // 用了提示之后做对 —— 证据力弱很多
+    P_G_DEFAULT_OPTIONS: 4, // 不知道选项数时按 4 个算
     P_S: 0.10     // 掌握了但答错的概率
   };
 
   function initialMastery() { return BKT.P_L0; }
 
-  function guessRate(inputType, hintUsed) {
+  // 选择题的蒙对率必须按**这一题实际的选项数**算，不能是个常数。
+  // 原来写死 0.25（假设 4 个选项），但实测生成的选择题里
+  // 2 选项和 3 选项占了绝大多数（判断题式的"舍去/进 1"只有 2 个）。
+  // 于是"蒙对了"被当成"有把握"记账：同样答对一题，
+  // 按 0.25 算掌握度会涨到 0.685，按 0.5 算只到 0.548。
+  // 这个数直接喂给撤支架的门槛（≥0.85）和难度升档（≥0.70），
+  // 高估一次，孩子就在还没稳住的时候被撤走支撑。
+  function guessRate(inputType, hintUsed, optionCount) {
     if (hintUsed) return BKT.P_G_HINTED;
-    return inputType === 'choice' ? BKT.P_G_CHOICE : BKT.P_G_NUMBER;
+    if (inputType === 'choice') {
+      var n = (typeof optionCount === 'number' && optionCount >= 2)
+        ? optionCount : BKT.P_G_DEFAULT_OPTIONS;
+      return 1 / n;
+    }
+    return BKT.P_G_NUMBER;
   }
 
   // attemptsSoFar = 这个知识点在这道题之前已经做过几题
-  function updateMastery(pL, isCorrect, inputType, hintUsed, attemptsSoFar) {
-    var pG = guessRate(inputType, hintUsed);
+  function updateMastery(pL, isCorrect, inputType, hintUsed, attemptsSoFar, optionCount) {
+    var pG = guessRate(inputType, hintUsed, optionCount);
     var pT = BKT.P_T, pS = BKT.P_S;
     var pLg;
     if (isCorrect) {
@@ -478,13 +490,22 @@
   }
 
   /* ============================== 结果提交 ============================== */
+  // 这道题算不算"作答过一次"。中途退出时界面会走到提交这一步，
+  // 一题没答的记录必须被丢掉 —— 把"不做了"记成"答错了"，
+  // 掌握度会朝悲观方向漂，而越受挫的孩子越容易中途退出，反馈环是恶性方向的。
+  function countsAsAnswer(record) {
+    return !!record && (record.attempts || 0) > 0;
+  }
+
   // 把一次作答写回 state（纯函数，返回新的 state 片段，由 store 负责落盘）
   function applyResult(state, record) {
     var kpId = record.kpId;
     var pL = masteryOf(state, kpId);
     var st = statsOf(state, kpId);
-    // 把"这是第几题"传进去：前两次作答要按证据量打折
-    var next = updateMastery(pL, record.isCorrect, record.inputType, record.hintLevel > 0, st.attempts);
+    // 把"这是第几题"传进去：前两次作答要按证据量打折；
+    // 选择题还要按这一题真实的选项数算蒙对率（见 guessRate）。
+    var next = updateMastery(pL, record.isCorrect, record.inputType,
+      record.hintLevel > 0, st.attempts, record.optionCount);
 
     var mutated = JSON.parse(JSON.stringify(state));
     mutated.mastery = mutated.mastery || {};
@@ -563,6 +584,12 @@
       k.total++;
       if (r.isCorrect) k.correct++;
       if (r.errorTag) k.tags[r.errorTag] = (k.tags[r.errorTag] || 0) + 1;
+      // 阶梯题的辅助步骤也是错因探针（比如"看错数位"只在第一步探测得到）。
+      // 只记最终那一步的话，这些设计出来的探针就白做了。
+      (r.stepTags || []).forEach(function (t) {
+        if (!t || t === 'OTHER') return;
+        k.tags[t] = (k.tags[t] || 0) + 1;
+      });
     });
 
     return {
@@ -600,6 +627,7 @@
     randomSeed: randomSeed,
     BKT: BKT,
     SCAFFOLD: SCAFFOLD,
+    guessRate: guessRate,
     difficultyShift: difficultyShift,
     targetDifficulty: targetDifficulty,
     dueKnowledge: dueKnowledge,
@@ -610,6 +638,7 @@
     buildQuestion: buildQuestion,
     buildSession: buildSession,
     gradeStep: gradeStep,
+    countsAsAnswer: countsAsAnswer,
     magnitudeCheck: magnitudeCheck,
     magnitudeMessage: magnitudeMessage,
     hintFor: hintFor,

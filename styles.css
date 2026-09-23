@@ -75,6 +75,15 @@ html, body {
 .card-quiet { background: transparent; box-shadow: none; }
 .card-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
 .card-note { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+/* 存不进去 / 读不出来时的横幅：必须显眼，不能只在控制台里响 */
+.card-warn {
+  border: 1px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 12px 14px; margin-bottom: 14px;
+  border-radius: 14px; font-size: 14.5px; line-height: 1.6;
+}
+
 .card-cta { padding: 20px 16px; }
 
 .cta-line { font-size: 19px; font-weight: 600; }
@@ -235,25 +244,6 @@ html, body {
 .feedback.teach { background: var(--card); border: 1px solid var(--line); }
 .teach-body { margin-top: 6px; color: var(--muted); font-size: 13.5px; }
 
-/* ---------------- 数字键盘 ----------------
-   电脑上直接敲键盘就行，屏幕键盘只在触摸设备上出现。
-   （app.js 仍然会渲染它，只是这里按输入方式隐藏，触摸设备不受影响。） */
-.keypad {
-  display: none;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px; margin-top: 14px;
-}
-@media (pointer: coarse) { .keypad { display: grid; } }
-.key {
-  appearance: none; font-family: inherit;
-  height: 52px; border-radius: 12px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--card); color: var(--text);
-  font-size: 22px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.key:active { background: var(--soft); transform: scale(.97); }
-.key-del { font-size: 19px; color: var(--muted); }
-
 /* ---------------- 结果页 ---------------- */
 .card-result { text-align: center; padding: 22px 16px; }
 .big-score { font-size: 42px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; }
@@ -334,8 +324,6 @@ html, body {
 @media (min-width: 700px) {
   #app { max-width: 720px; }
   .view { padding: 24px 24px calc(40px + env(safe-area-inset-bottom)); }
-  .keypad { grid-template-columns: repeat(6, 1fr); }
-  .key { height: 50px; }
 }
 
 /* ---- 电脑 ---- */
@@ -424,8 +412,6 @@ html, body {
   .btn-ghost:hover { background: var(--soft); color: var(--primary); border-color: var(--soft); }
   .btn-icon:hover { background: var(--soft); color: var(--primary); }
   .opt:hover { border-color: var(--primary); }
-  .key:hover { background: var(--soft); }
-  .key-del:hover { color: var(--warn); }
 }
 
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

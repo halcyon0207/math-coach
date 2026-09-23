@@ -18,6 +18,7 @@
   'use strict';
 
   var KEY = 'math-coach-v1';
+  var loadFailed = false;   // 上一次 load 有没有读坏
 
   function defaultState() {
     return {
@@ -32,23 +33,33 @@
     };
   }
 
+  // 类型也要校。只写 `s.history || []` 的话，一个"能 parse 但形状不对"的
+  // 值（比如 history 是 {}）会一路混进界面，在 render 里才炸 ——
+  // 表现出来是"打开就白屏"，比回到空白状态难查得多。
+  function obj(v, dflt) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : dflt; }
+  function arr(v, dflt) { return Array.isArray(v) ? v : dflt; }
+  function str(v, dflt) { return typeof v === 'string' && v ? v : dflt; }
+
   function load() {
+    loadFailed = false;
     try {
       var raw = root.localStorage && root.localStorage.getItem(KEY);
       if (!raw) return defaultState();
       var s = JSON.parse(raw);
+      if (!s || typeof s !== 'object') throw new Error('形状不对');
       var d = defaultState();
       return {
         version: s.version || d.version,
-        childName: s.childName || '',
+        childName: str(s.childName, ''),
         createdAt: s.createdAt || d.createdAt,
-        mastery: s.mastery || {},
-        stats: s.stats || {},
-        history: s.history || [],
-        sessions: s.sessions || [],
-        unit: s.unit || 'all'
+        mastery: obj(s.mastery, {}),
+        stats: obj(s.stats, {}),
+        history: arr(s.history, []),
+        sessions: arr(s.sessions, []),
+        unit: str(s.unit, 'all')
       };
     } catch (e) {
+      loadFailed = true;
       return defaultState();
     }
   }
@@ -72,5 +83,12 @@
     return defaultState();
   }
 
-  return { KEY: KEY, defaultState: defaultState, load: load, save: save, reset: reset };
+  return {
+    KEY: KEY,
+    defaultState: defaultState,
+    load: load,
+    save: save,
+    reset: reset,
+    loadFailed: function () { return loadFailed; }
+  };
 });

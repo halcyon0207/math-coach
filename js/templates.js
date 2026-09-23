@@ -555,7 +555,8 @@
               tag: v === dropZeros ? null : (v < dropZeros ? 'UNIT_ZERO_FEW' : 'UNIT_ZERO_MORE')
             };
           }),
-          hint: '1 ' + unitName + ' = ' + unitValue + '，所以要去掉 ' + dropZeros + ' 个 0。',
+          hint: '1 ' + unitName + ' = ' + unitValue + '。数一数 ' + unitValue +
+            ' 的末尾有几个 0，就是要去掉的个数。',
           teach: ['1 ' + unitName + ' = ' + unitValue + '，去掉 ' + dropZeros +
             ' 个 0 就换成「' + unitName + '」作单位']
         };
@@ -870,7 +871,9 @@
               options: shuffle(rng, [90, 180, 360].map(function (v) {
                 return { value: v, label: v + '°', tag: v === whole ? null : 'WHOLE_ANGLE_WRONG' };
               })),
-              hint: '1 周角 = 2 平角 = 4 直角，直角是 90°。',
+              // 提示里刻意不出现度数：三个选项就是 90 / 180 / 360，
+              // 一提数字就等于把答案念出来了，这一步的探测也就白放了。
+              hint: '想想这三个名字是怎么来的：直角方方正正，平角张开成一条直线，周角转了一整圈。',
               teach: [wholeName + '是 ' + whole + '°']
             },
             {
@@ -1443,7 +1446,7 @@
                 { value: 100, label: '100', tag: rate === 100 ? null : 'AREA_UNIT_RATE' },
                 { value: 10000, label: '10000', tag: rate === 10000 ? null : 'AREA_UNIT_RATE' }
               ]),
-              hint: '面积单位的进率是"长度进率的平方"：10 × 10 = 100。',
+              hint: '面积单位的进率是"长度进率的平方"：把相邻长度单位之间的那个进率，自己乘一次。',
               teach: ['1 ' + spec.from + ' = ' + rate + ' ' + spec.to]
             },
             {

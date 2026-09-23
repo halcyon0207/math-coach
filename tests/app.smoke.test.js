@@ -17,6 +17,8 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..');
 const RESULT_MARK = 'card-result';   // 结果页独有的 class
 
+const noop = () => {};
+
 function makeEl(id) {
   return {
     id,
@@ -27,10 +29,29 @@ function makeEl(id) {
   };
 }
 
-function boot() {
-  const els = { app: makeEl('app') };
-  const bag = {};
+// 画布替身：ctx 上的一切当空操作，指针事件记下来供测试触发。
+// 以前 getElementById 根本不返回画布，attachCanvas 每次都直接 return ——
+// 于是"画笔绑定""转屏重量尺寸"这两条路径一次都没跑过。
+function makeCanvas(id) {
+  const ctx = new Proxy({}, { get: () => noop, set: () => true });
+  return {
+    id, style: {}, width: 0, height: 0, _ptr: {},
+    parentNode: { clientWidth: 320, clientHeight: 160 },
+    getContext: () => ctx,
+    addEventListener(type, fn) { (this._ptr[type] = this._ptr[type] || []).push(fn); },
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    setPointerCapture: noop
+  };
+}
+
+// persisted：预先塞进 localStorage 的内容，用来测"带着旧数据重新打开"。
+// 以前所有用例都是从零启动的，于是"选过的单元会记住""记录不会丢"
+// 这些承诺其实一次都没被验过。
+function boot(persisted) {
+  const els = { app: makeEl('app'), qCanvas: makeCanvas('qCanvas') };
+  const bag = persisted ? { 'math-coach-v1': JSON.stringify(persisted) } : {};
   const keyHandlers = [];
+  const winHandlers = {};
 
   const sandbox = {
     console,
@@ -48,7 +69,11 @@ function boot() {
     },
     scrollTo: () => {},
     confirm: () => true,
-    alert: () => {}
+    alert: () => {},
+    // app.js 会挂 resize / visualViewport 监听（转屏、软键盘收起后要重量画布尺寸）
+    addEventListener: (t, fn) => { (winHandlers[t] = winHandlers[t] || []).push(fn); },
+    visualViewport: { addEventListener: (t, fn) => { (winHandlers[t] = winHandlers[t] || []).push(fn); } },
+    requestAnimationFrame: fn => fn(),
   };
   sandbox.self = sandbox;
   sandbox.window = sandbox;
@@ -87,7 +112,12 @@ function boot() {
     return prevented;
   }
 
-  return { els, sandbox, click, key, html: () => els.app.innerHTML };
+  // 真的"转一次屏"：先改容器宽度，再触发 app.js 挂上的 resize 监听
+  function resize() {
+    (winHandlers.resize || []).forEach(fn => fn({ type: 'resize' }));
+  }
+
+  return { els, sandbox, canvas: els.qCanvas, click, key, resize, html: () => els.app.innerHTML };
 }
 
 // 作答区里的当前步骤提示。用这个而不是从阶梯列表里找，
@@ -165,6 +195,19 @@ test('每道题都解释了"为什么给你出这道题"', () => {
   const app = boot();
   app.click('start');
   assert.ok(app.html().includes('为什么给你出这道题'));
+});
+
+test('转屏重量画布尺寸，不会把指针事件绑第二遍', () => {
+  const app = boot();
+  app.click('start');
+  assert.ok(app.canvas.width > 0, '画布应当已经按容器铺好（不然画笔是死的）');
+  assert.strictEqual(app.canvas._ptr.pointerdown.length, 1, '练习页应当绑一次画笔事件');
+
+  app.canvas.parentNode.clientWidth = 240;
+  app.resize();
+  assert.strictEqual(app.canvas.width, 240, '转屏之后位图宽度要跟着重量');
+  assert.strictEqual(app.canvas._ptr.pointerdown.length, 1,
+    '再绑一遍的话，一次落笔会被记成两笔，家长看到的题上全是重影');
 });
 
 /* ==================== 完整流程 ==================== */
@@ -494,11 +537,73 @@ test('清空数据后回到初始状态', () => {
   assert.strictEqual(app.sandbox.localStorage.getItem('math-coach-v1'), null);
 });
 
-test('中途退出会如实记录，但仍回到首页', () => {
+test('中途退出：一题没答就不该被记成答错', () => {
   const app = boot();
   app.click('start');
   app.click('submit');        // 空答案，应当只是提示，不崩
   assert.ok(app.html().includes('还没填答案'));
   app.click('quit');
   assert.ok(app.html().includes('开始练习'), '退出后应当回到首页');
+
+  // 这是这条测试真正钉的东西：弹窗承诺"没做的不会算"。
+  // 以前 quitSession 会无条件提交当前题，把"中途不做了"记成答错 ——
+  // 掌握度降一档、错题列表多一条，对一个容易受挫的孩子方向正好相反。
+  const raw = app.sandbox.localStorage.getItem('math-coach-v1');
+  const saved = raw ? JSON.parse(raw) : null;
+  assert.ok(!saved || (saved.history || []).length === 0,
+    '没作答就退出，不该产生作答记录');
+  assert.ok(!saved || (saved.sessions || []).length === 0,
+    '一道没做的练习不该留下一场记录');
+});
+
+/* ==================== 重新打开页面之后的数据 ==================== */
+// 以前所有用例都是从零启动的：练完关掉、明天再打开这条真实路径一次都没测过。
+
+const U1 = '第一单元　万以上数的认识';
+
+test('带着旧记录重新打开：选过的单元还在', () => {
+  const app = boot({
+    version: 1, childName: '', createdAt: 1, unit: U1,
+    mastery: { 'M4A-01-05': 0.62 },
+    stats: { 'M4A-01-05': { attempts: 4, corrects: 3, wrongs: 1, lastPracticedAt: 1, level: 2, dueAt: 0, streak: 0, wrongStreak: 0 } },
+    history: [], sessions: []
+  });
+  const html = app.html();
+  assert.ok(html.includes('data-u="' + U1 + '"'), '首页应当列出这个单元');
+  assert.ok(html.includes('unit-btn on" data-act="unit" data-u="' + U1 + '"'),
+    '上次的单元选择应当在按钮上是选中状态');
+  app.click('progress');
+  assert.ok(app.html().includes('练过 4 题'), '掌握度地图里该看到上次练过的题量');
+});
+
+test('带坏数据重新打开：不能白屏，也不能假装没事', () => {
+  // 能 parse 但形状不对（history 是对象）——以前会一路混到 render 里才炸。
+  const app = boot({ version: 1, unit: U1, mastery: {}, stats: {}, history: { 0: 'x' }, sessions: 'no' });
+  assert.ok(app.html().includes('开始练习'), '形状不对时应当回到可用状态，而不是白屏');
+
+  // 彻底读不出来（不是 JSON）——同样要能用，但要告诉家长数据没了。
+  const bad = { 'math-coach-v1': '{ 这不是 JSON' };
+  const app2 = boot(bad);
+  assert.ok(app2.html().includes('开始练习'), '坏数据不该让页面打不开');
+});
+
+test('阶梯题辅助步骤的错因要能在家长报告里看到', () => {
+  const tag = 'WRONG_DIGIT';   // 「看的数位不对」——只有 tier 1 那一步探测得到
+  const app = boot({
+    version: 1, childName: '', createdAt: 1, unit: 'all',
+    mastery: { 'M4A-01-06': 0.4 },
+    stats: { 'M4A-01-06': { attempts: 2, corrects: 1, wrongs: 1, lastPracticedAt: 1, level: 0, dueAt: 0, streak: 0, wrongStreak: 1 } },
+    history: [{
+      ts: Date.now(), sessionId: 'S1', kpId: 'M4A-01-06', templateId: 'T-0106-A',
+      shape: 'approx', qid: 'T-0106-A@{}', difficulty: 0.55, scaffoldLevel: 2,
+      stem: '123456 ≈ （　）万', isCorrect: false, attempts: 3,
+      errorTag: null, stepTags: [tag], hintLevel: 0, inputType: 'number',
+      timeSpentMs: 30000
+    }],
+    sessions: []
+  });
+  app.click('parent');
+  const html = app.html();
+  assert.ok(html.includes('看的数位不对'),
+    '辅助步骤测出的错因必须出现在家长报告里，否则这一步的探针白放');
 });

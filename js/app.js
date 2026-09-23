@@ -29,9 +29,11 @@
     penOn: false,
     showRuler: false,
     hintLevel: 0,
+    hintLevelSeen: 0,
     // 这一题里到底有没有用过提示。hintLevel 是按"步"归零的，
     // 不能拿它来判断"这题用过提示没有"，所以单独记一个。
     hintUsedInQuestion: false,
+    storageWarn: '',      // 本地存不进去时的提示，不静默吞掉
     feedback: null,      // { tone: 'ok'|'warn'|'info'|'teach', text }
     questionStartAt: 0,
     results: [],
@@ -39,6 +41,15 @@
   };
 
   var el = function (id) { return document.getElementById(id); };
+
+  // 保存必须看结果。隐私模式、空间满、被沙箱拦住时 localStorage.setItem 会抛，
+  // 只 console.warn 的表现就是"练了半天，下次打开全没了"，家长查都查不出来。
+  function saveState() {
+    if (S.save(app.state)) { app.storageWarn = ''; return true; }
+    app.storageWarn = '这台设备现在存不下练习记录（可能是无痕模式或空间已满）。' +
+      '这一轮还能继续练，但关掉页面就不会保存，先告诉家长。';
+    return false;
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -138,7 +149,7 @@
 
       '<div class="card card-cta">' +
       '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
-      '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前三道是热身。</div>' +
+      '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前两道是热身。</div>' +
       '<button class="btn btn-primary btn-lg" data-act="start">开始练习</button>' +
       '</div>' +
 
@@ -202,7 +213,7 @@
     // 错因汇总：这是"计算不仔细"的体检报告
     var tagCount = {};
     (state.history || []).forEach(function (h) {
-      if (h.errorTag && h.errorTag !== 'OTHER') tagCount[h.errorTag] = (tagCount[h.errorTag] || 0) + 1;
+      tagsOf(h).forEach(function (t) { tagCount[t] = (tagCount[t] || 0) + 1; });
     });
     var tagRows = Object.keys(tagCount).sort(function (a, b) { return tagCount[b] - tagCount[a]; })
       .map(function (t) {
@@ -545,6 +556,11 @@
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  // 每根手指各占一笔。用单个 drawing 布尔值的话，手掌或另一根手指碰一下屏幕，
+  // 两根手指的点会被并进同一笔里，画出来就是一条横穿的怪线 ——
+  // 孩子越想画干净越乱（9 岁孩子写字时另一只手常按在屏幕上）。
+  var liveStrokes = {};   // pointerId -> 该手指那一笔的点数组
+
   function redrawCanvas(ctx, cv) {
     if (!ctx) return;
     var dpr = window.devicePixelRatio || 1;
@@ -560,7 +576,9 @@
     });
   }
 
-  function endStroke() { app.drawing = false; }
+  function endStroke(e) {
+    if (e && e.pointerId != null) delete liveStrokes[e.pointerId];
+  }
 
   // 每次 render() 之后都要重新绑定：画布是新的，尺寸也可能变了
   function attachCanvas() {
@@ -570,7 +588,18 @@
     if (!host) return;
 
     var w = host.clientWidth, h = host.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h) {
+      // 布局还没定（刚插入、或在隐藏容器里）。这时候放手的话画笔整个是死的，
+      // 孩子点了没反应又不知道为什么 —— 等一帧再量一次。
+      // 只再试两次：容器一直是 0 宽说明这一屏根本没有画布，
+      // 不限次数的话会变成每帧重挂一次 rAF，手机就是这么发起烫的。
+      var tries = cv._mcTries || 0;
+      if (tries < 2 && typeof requestAnimationFrame === 'function') {
+        cv._mcTries = tries + 1;
+        requestAnimationFrame(function () { if (app.view === 'practice') attachCanvas(); });
+      }
+      return;
+    }
 
     var dpr = window.devicePixelRatio || 1;
     cv.width = Math.round(w * dpr);
@@ -587,25 +616,32 @@
     ctx.strokeStyle = '#e8590c';
     redrawCanvas(ctx, cv);
 
-    cv.addEventListener('pointerdown', function (e) {
-      if (!app.penOn) return;
-      if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
-      app.drawing = true;
-      app.strokes.push([posOf(cv, e)]);
-      redrawCanvas(ctx, cv);
-      e.preventDefault();
-    });
-    cv.addEventListener('pointermove', function (e) {
-      if (!app.penOn || !app.drawing) return;
-      var st = app.strokes[app.strokes.length - 1];
-      if (!st) return;
-      st.push(posOf(cv, e));
-      redrawCanvas(ctx, cv);
-      e.preventDefault();
-    });
-    cv.addEventListener('pointerup', endStroke);
-    cv.addEventListener('pointercancel', endStroke);
-    cv.addEventListener('pointerleave', endStroke);
+    // 事件只绑一次。resize 会再调一回 attachCanvas，那时候节点还是原来那个，
+    // 再绑一遍就等于一次落笔画出两笔 —— 家长看到的是一堆重影，
+    // 而且越是转屏越是频繁，恰恰是最需要看清楚孩子写了什么的时候。
+    if (!cv._mcBound) {
+      cv._mcBound = true;
+      cv.addEventListener('pointerdown', function (e) {
+        if (!app.penOn) return;
+        if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
+        var st = [posOf(cv, e)];
+        liveStrokes[e.pointerId] = st;
+        app.strokes.push(st);
+        redrawCanvas(ctx, cv);
+        e.preventDefault();
+      });
+      cv.addEventListener('pointermove', function (e) {
+        if (!app.penOn) return;
+        var st = liveStrokes[e.pointerId];
+        if (!st) return;
+        st.push(posOf(cv, e));
+        redrawCanvas(ctx, cv);
+        e.preventDefault();
+      });
+      cv.addEventListener('pointerup', endStroke);
+      cv.addEventListener('pointercancel', endStroke);
+      cv.addEventListener('pointerleave', endStroke);
+    }
   }
 
   /* ============================== 视图：结果 ============================== */
@@ -678,6 +714,17 @@
       '<button class="btn btn-primary btn-lg btn-block" data-act="home">回到首页</button>';
   }
 
+  // 一条作答记录里能读出的错因：最终那一步的，加上阶梯题辅助步骤的。
+  // "看错数位"这类探针只有辅助步骤能测到，只统计最终步骤等于把它们扔掉。
+  function tagsOf(h) {
+    var out = [];
+    if (h.errorTag && h.errorTag !== 'OTHER') out.push(h.errorTag);
+    (h.stepTags || []).forEach(function (t) {
+      if (t && t !== 'OTHER' && out.indexOf(t) === -1) out.push(t);
+    });
+    return out;
+  }
+
   /* ============================== 会话流程 ============================== */
   function currentQuestion() {
     return app.session ? app.session.questions[app.cursor] : null;
@@ -699,12 +746,16 @@
   function prepareQuestion() {
     var q = currentQuestion();
     app.stepStates = q.steps.map(function () {
-      return { attempts: 0, done: false, isCorrect: false, lastValue: null, errorTag: null };
+      return { attempts: 0, done: false, isCorrect: false, lastValue: null, errorTag: null, firstErrorTag: null };
     });
     app.activeStep = 0;
     app.input = '';
     app.choiceValue = null;
     app.hintLevel = 0;
+    // 提示档位是按步给的（换步要归零，否则后面的步骤点不到提示），
+    // 但"这一题一共要到了第几级提示"必须按题记下来 ——
+    // 以前直接把已被归零的 hintLevel 写进记录，第 2 级提示永远记成第 1 级。
+    app.hintLevelSeen = 0;
     app.hintUsedInQuestion = false;
     app.strokes = [];          // 换题就把上一题的笔迹清掉
     app.showRuler = false;
@@ -752,6 +803,11 @@
     ss.attempts++;
     ss.lastValue = value;
     ss.errorTag = g.errorTag;
+    // 第一次答错时的那个错因最有信息量。后面再改对时 errorTag 会被清成 null，
+    // 探针就白放了 —— 所以单独留一份"这步第一次错在哪"。
+    if (!g.isCorrect && g.errorTag && g.errorTag !== 'OTHER' && !ss.firstErrorTag) {
+      ss.firstErrorTag = g.errorTag;
+    }
 
     if (g.isCorrect) {
       ss.done = true;
@@ -777,6 +833,7 @@
         app.choiceValue = null;
       } else if (ss.attempts === 2) {
         app.hintLevel = Math.max(app.hintLevel, 1);
+        app.hintLevelSeen = Math.max(app.hintLevelSeen, 1);
         app.hintUsedInQuestion = true;
         app.feedback = { tone: 'info', text: '给你一点提示：' + E.hintFor(step, 1) };
         app.input = '';
@@ -784,6 +841,7 @@
       } else {
         ss.done = true;
         app.hintLevel = 2;
+        app.hintLevelSeen = 2;
         app.hintUsedInQuestion = true;
         app.feedback = {
           tone: 'teach',
@@ -809,6 +867,7 @@
     if (!step) return;
     if (app.hintLevel >= 2) return;
     app.hintLevel++;
+    app.hintLevelSeen = Math.max(app.hintLevelSeen, app.hintLevel);
     app.hintUsedInQuestion = true;
     app.feedback = { tone: 'info', text: '提示' + app.hintLevel + '：' + E.hintFor(step, app.hintLevel) };
     render();
@@ -816,11 +875,28 @@
 
   function finishQuestion() {
     var q = currentQuestion();
+    if (!q) return false;
     var finalIdx = -1;
     q.steps.forEach(function (s, i) { if (s.tier === 0) finalIdx = i; });
     if (finalIdx < 0) finalIdx = q.steps.length - 1;
     var fs = app.stepStates[finalIdx];
     var finalStep = q.steps[finalIdx];
+
+    // 一题都没作答就别记账。以前退出练习会无条件走到这里，
+    // 把"孩子中途不做了"记成"这道题答错了"：掌握度降一档、
+    // wrongs+1、还进家长报告的错题列表。
+    // 对容易中途退出的孩子，这条会把数据系统性写成偏悲观的样子，
+    // 而弹窗里承诺的恰恰是"没做的不会算"。
+    if (!E.countsAsAnswer({ attempts: fs.attempts })) return false;
+
+    // 辅助步骤的错因探针也要落盘：像"看错数位"这种只在第一步探测得到的错因，
+    // 光记最终那一步就永远进不了统计。
+    var stepTags = [];
+    q.steps.forEach(function (s, i) {
+      if (s.tier === 0 || i === finalIdx) return;
+      var t = app.stepStates[i].firstErrorTag;
+      if (t) stepTags.push(t);
+    });
 
     var rec = {
       ts: Date.now(),
@@ -834,18 +910,22 @@
       stem: finalStep.prompt,
       isCorrect: !!fs.isCorrect,
       attempts: fs.attempts,
-      errorTag: fs.isCorrect ? null : fs.errorTag,
+      errorTag: fs.isCorrect ? null : (fs.firstErrorTag || fs.errorTag),
+      stepTags: stepTags,
       magnitudeFailed: !!fs.magnitudeFailed,
-      hintLevel: app.hintUsedInQuestion ? Math.max(app.hintLevel, 1) : 0,
+      hintLevel: app.hintUsedInQuestion ? Math.max(app.hintLevelSeen, 1) : 0,
       isCorrectAfterHint: !!fs.isCorrect && !!app.hintUsedInQuestion,
       inputType: finalStep.type,
+      // 蒙对率和这一题的选项数有关，必须随记录一起存下来
+      optionCount: finalStep.type === 'choice' ? (finalStep.options || []).length : null,
       timeSpentMs: Date.now() - app.questionStartAt
     };
 
     var out = E.applyResult(app.state, rec);
     app.state = out.state;
-    S.save(app.state);
+    saveState();
     app.results.push(rec);
+    return true;
   }
 
   function nextQuestion() {
@@ -870,7 +950,7 @@
       total: app.results.length,
       correct: app.results.filter(function (r) { return r.isCorrect; }).length
     });
-    S.save(app.state);
+    saveState();
     app.view = 'result';
     render();
   }
@@ -878,16 +958,19 @@
   function quitSession() {
     if (!window.confirm('要退出这次练习吗？已经做过的题会记下来，没做的不会算。')) return;
     finishQuestion();
-    app.state.sessions = app.state.sessions || [];
-    app.state.sessions.push({
-      id: app.session.id,
-      startedAt: app.session.startedAt,
-      endedAt: Date.now(),
-      total: app.results.length,
-      correct: app.results.filter(function (r) { return r.isCorrect; }).length,
-      quit: true
-    });
-    S.save(app.state);
+    // 一道都没做就别记这一次"练习"，否则家长报告里会出现"练了 0 题"的记录
+    if (app.results.length) {
+      app.state.sessions = app.state.sessions || [];
+      app.state.sessions.push({
+        id: app.session.id,
+        startedAt: app.session.startedAt,
+        endedAt: Date.now(),
+        total: app.results.length,
+        correct: app.results.filter(function (r) { return r.isCorrect; }).length,
+        quit: true
+      });
+      saveState();
+    }
     app.view = 'home';
     app.session = null;
     render();
@@ -950,8 +1033,8 @@
       var pct = Math.round(st.corrects / st.attempts * 100);
       var tags = {};
       hist.forEach(function (h) {
-        if (h.kpId !== k.id || !h.errorTag || h.errorTag === 'OTHER') return;
-        tags[h.errorTag] = (tags[h.errorTag] || 0) + 1;
+        if (h.kpId !== k.id) return;
+        tagsOf(h).forEach(function (t) { tags[t] = (tags[t] || 0) + 1; });
       });
       var top = '', topN = 0;
       Object.keys(tags).forEach(function (t) { if (tags[t] > topN) { topN = tags[t]; top = t; } });
@@ -970,11 +1053,13 @@
     // ---- 最近错题 ----
     var wrongRows = hist.filter(function (h) { return !h.isCorrect; }).slice(-15).reverse()
       .map(function (h) {
-        var info = T.ERROR_TAGS[h.errorTag] || { label: '再算一遍试试' };
+        var ts = tagsOf(h).map(function (t) {
+          return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
+        });
         return '<div class="kp-row">' +
           '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
           '<span class="kp-label">' + esc(fmtTime(h.ts)) + '</span></div>' +
-          '<div class="kp-foot"><span>错因：' + esc(info.label) + '</span>' +
+          '<div class="kp-foot"><span>错因：' + esc(ts.join('、') || '再算一遍试试') + '</span>' +
           '<span>' + (h.hintLevel > 0 ? '用了提示' : '没用提示') + '</span></div>' +
           '</div>';
       }).join('');
@@ -1014,16 +1099,18 @@
   }
 
   function exportCsv() {
-    var rows = [['时间', '知识点', '题干', '对错', '错因', '用时（秒）', '用了提示']];
+    var rows = [['时间', '知识点', '题干', '对错', '错因', '阶梯步错因', '用时（秒）', '提示到第几级']];
     (app.state.history || []).forEach(function (h) {
+      var label = function (t) { return (T.ERROR_TAGS[t] || {}).label || t; };
       rows.push([
         fmtTime(h.ts),
         (K.byId(h.kpId) || {}).name || h.kpId,
         h.stem || '',
         h.isCorrect ? '对' : '错',
-        h.errorTag ? ((T.ERROR_TAGS[h.errorTag] || {}).label || h.errorTag) : '',
+        h.errorTag ? label(h.errorTag) : '',
+        (h.stepTags || []).map(label).join('、'),
         Math.round((h.timeSpentMs || 0) / 1000),
-        h.hintLevel > 0 ? '是' : '否'
+        h.hintLevel > 0 ? '第 ' + h.hintLevel + ' 级' : ''
       ]);
     });
     // \uFEFF 让 Excel 认出这是 UTF-8，否则中文全是乱码
@@ -1055,7 +1142,10 @@
           : app.view === 'parent' ? viewParent()
             : viewProgress();
 
-    root.innerHTML = '<div class="view view-' + app.view + '">' + html + '</div>';
+    var warn = app.storageWarn
+      ? '<div class="card card-warn">' + esc(app.storageWarn) + '</div>'
+      : '';
+    root.innerHTML = '<div class="view view-' + app.view + '">' + warn + html + '</div>';
     // 画布是新造出来的，尺寸要重算、笔迹要照着再画一遍
     if (app.view === 'practice') attachCanvas();
 
@@ -1097,14 +1187,15 @@
     if (act === 'parent') { app.view = 'parent'; return render(); }
     if (act === 'unit') {
       app.state.unit = t.getAttribute('data-u') || 'all';
-      S.save(app.state);
+      saveState();
       return render();
     }
     if (act === 'export-csv') return exportCsv();
     if (act === 'quit') return quitSession();
     if (act === 'pen') {
+      // 开关只切"能不能画"，不清笔迹：孩子只是想点一下提示再回来接着画，
+      // 笔迹不该丢。（要清空有专门的「清掉笔迹」。）
       app.penOn = !app.penOn;
-      app.strokes = [];        // 开关切换就清掉，免得留着上一题的笔迹
       return render();
     }
     if (act === 'pen-clear') { app.strokes = []; return render(); }
@@ -1133,6 +1224,10 @@
   function onKeyDown(e) {
     if (app.view !== 'practice' || !app.session) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // 输入法还在拼字（选词没敲定）时不要把这下按键当成答案处理：
+    // 中文输入法里回车常常是用来"上屏"的，抢下来会吞掉正在拼的内容，
+    // 还会拿旧的 app.input 去提交。
+    if (e.isComposing || e.keyCode === 229) return;
 
     var q = currentQuestion();
     if (!q) return;
@@ -1188,9 +1283,28 @@
 
   function init() {
     app.state = S.load();
+    // 读不出来 = 上次的数据没了。这必须说出来：静默回到空白状态，
+    // 家长只会以为孩子自己清掉了。
+    if (S.loadFailed && S.loadFailed()) {
+      app.storageWarn = '上一次的练习记录读不出来，已经从空白开始。' +
+        '如果不是自己清的，请告诉家长，可能需要重装或换浏览器。';
+    }
     el('app').addEventListener('click', onClick);
     el('app').addEventListener('input', onInput);
     document.addEventListener('keydown', onKeyDown);
+
+    // 转屏、软键盘收起都会改变画布大小。画布的位图尺寸是在渲染时定的，
+    // 之后只靠 CSS 拉伸的话，笔迹会和题目错位 —— 得重新量一次再重画。
+    // 不看 penOn：笔已经画在上面的那些字，转个身就歪了的话，
+    // 孩子关掉画笔去看一眼提示，回来发现画的东西对不上位置了。
+    var refit = function () {
+      if (app.view === 'practice') attachCanvas();
+    };
+    window.addEventListener('resize', refit);
+    if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+      window.visualViewport.addEventListener('resize', refit);
+    }
+
     render();
   }
 
