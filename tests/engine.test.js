@@ -729,6 +729,51 @@ test('组卷：连着几场下来，每个知识点都会被练到（新的不�
   });
 });
 
+test('拼角知识点的第一次露面必须先上探究题，练过之后就不再出', () => {
+  // 探究题（T-0204-E）是"第一次搭表"：七种拼法一个一个亲手算出来。
+  // 它只配在该知识点 attempts === 0 时出场，而且一场最多一次 ——
+  // 七步的整理题反复出现，挤掉的是真正该练的判断题。
+  const KP = 'M4A-02-04';
+  const state = freshState();
+  // 其他知识点都留下练习记录，只让拼角处于"第一次露面"
+  Knowledge.implemented().forEach(k => {
+    if (k.id === KP) return;
+    state.stats[k.id] = { attempts: 4, corrects: 3, wrongs: 1, lastPracticedAt: Date.now() };
+  });
+
+  let sawIntro = 0;
+  for (let s = 0; s < 10; s++) {
+    const sess = Engine.buildSession(state, rngFor(s * 17 + 5));
+    const kpQs = sess.questions.filter(q => q.kpId === KP);
+    const intros = sess.questions.filter(q => q.templateId === 'T-0204-E');
+
+    assert.ok(intros.length <= 1, `第 ${s} 场出现了 ${intros.length} 道探究题，一场最多一道`);
+    if (!kpQs.length) continue;
+
+    sawIntro++;
+    // 没练过的知识点必占一个露面名额，且 introFirst 只认 attempts === 0
+    assert.strictEqual(intros.length, 1, '第一次接触该知识点，出的第一道必须是探究题');
+    const q = intros[0];
+    assert.ok(q.allSteps.length >= 7, '探究题应当把七种拼法全部列出');
+    assert.ok(q.reason.includes('还没练过'), '探究题的出题理由要说明这是第一次搭表');
+    // 七步全拆：第一次露面必然 scaffold=2，减法探针（tier0）不能被裁掉
+    assert.ok(q.steps.length >= 7, '探究题在首次露面时不该撤步骤');
+    assert.ok(q.steps.some(st => st.tier === 0 && st.id === 'make6'),
+      '减法那一步是核心探针，必须保留');
+  }
+  assert.ok(sawIntro > 0, '十场里一次都没安排过该知识点，测试场景没造对');
+
+  // 练过一次之后，探究题就该彻底退场
+  state.stats[KP] = { attempts: 1, corrects: 1, wrongs: 0, lastPracticedAt: Date.now() };
+  for (let s = 0; s < 10; s++) {
+    const sess = Engine.buildSession(state, rngFor(s * 23 + 9));
+    sess.questions.forEach(q => {
+      assert.notStrictEqual(q.templateId, 'T-0204-E',
+        '练过之后探究题还在出场 —— intro 只该有一次露面路径');
+    });
+  }
+});
+
 test('做完一整场之后，支架不会整场消失（这是"题目突然没步骤了"的回归测试）', () => {
   let state = freshState();
 

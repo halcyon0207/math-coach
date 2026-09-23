@@ -24,7 +24,11 @@ function makeEl(id) {
     id,
     innerHTML: '',
     _click: [],
-    addEventListener(type, fn) { if (type === 'click') this._click.push(fn); },
+    _input: [],
+    addEventListener(type, fn) {
+      if (type === 'click') this._click.push(fn);
+      if (type === 'input') this._input.push(fn);
+    },
     getAttribute() { return null; }
   };
 }
@@ -117,12 +121,24 @@ function boot(persisted) {
     (winHandlers.resize || []).forEach(fn => fn({ type: 'resize' }));
   }
 
-  return { els, sandbox, canvas: els.qCanvas, click, key, resize, html: () => els.app.innerHTML };
+  // 往输入框里打字：触发 app.js 挂在 #app 上的 input 监听
+  function type(id, value) {
+    const input = els.app._input[0];
+    assert.ok(input, '页面没有注册输入监听，说明 app.js 没有正常初始化');
+    input({ target: { id, value } });
+  }
+
+  return {
+    els, sandbox, canvas: els.qCanvas, click, key, resize, type,
+    html: () => els.app.innerHTML,
+    state: () => JSON.parse(bag['math-coach-v1'] || '{}')
+  };
 }
 
-// 作答区里的当前步骤提示。用这个而不是从阶梯列表里找，
-// 因为列表里已经做完的步骤也带着 step-prompt，容易抓到错的题。
-const ACTIVE_STEP = /<div class="wz-prompt">([^<]+)<\/div>/;
+// 当前步骤的题干。单栏内联之后作答控件就排在它下面，
+// 所以锚定 `<li class="step active">` 里的那个 step-prompt ——
+// 已经做完的步骤也带着 step-prompt，不能随便抓一个。
+const ACTIVE_STEP = /<li class="step active"[\s\S]*?<span class="step-prompt">([^<]+)<\/span>/;
 const FIRST_OPTION = /data-act="opt" data-v="([^"]+)"/;
 
 // 能照题干算出答案的填空题，返回答案；算不出就返回 null（这类题后面不断言对错）。
@@ -320,28 +336,31 @@ test('提示不会泄露答案，且最多给两级', () => {
 
 /* ==================== 版面结构 ==================== */
 
-test('练习页是"左边看、右边做"的两栏结构', () => {
+test('练习页是单栏：作答控件内联在当前步骤里，不再另起作答区', () => {
   const app = boot();
   app.click('start');
   let html = app.html();
 
-  assert.ok(html.includes('practice-grid') && html.includes('col-main') && html.includes('col-side'),
-    '练习页应当分成两栏');
-  assert.ok(html.includes('workzone'), '作答区要独立成一块');
-  assert.ok(html.includes('wz-prompt'), '作答区要重复显示当前这一步问什么');
+  assert.ok(!html.includes('practice-grid') && !html.includes('col-side') &&
+    !html.includes('workzone'),
+    '旧的"两栏 + 独立作答区"结构应当已经移除');
+  assert.ok(html.includes('card card-q') && html.includes('<ol class="steps">'),
+    '题目和步骤应当是同一页里的一列');
 
   // 键盘提示只在填空题上出现 —— 选择题是点选项，没有"敲数字"这回事。
   // 而第一题的第一步不一定是填空题（阶梯题开头常是一个辅助步骤），
   // 所以必须先走到填空题再看，不能拿第一屏直接断言。
   assert.ok(advanceToNumberStep(app), '没走到填空题');
   html = app.html();
-  assert.ok(html.includes('wz-kbd-hint') && html.includes('键盘'),
-    '作答区要提示可以直接用键盘输入');
+  assert.ok(html.includes('step-kbd-hint') && html.includes('键盘'),
+    '当前步骤里要提示可以直接用键盘输入');
 
-  // 输入控件必须在作答区里，不能留在阶梯列表那一栏
-  const main = html.split('col-side')[0];
-  assert.ok(!main.includes('answer-box') && !main.includes('data-act="opt"'),
-    '输入控件不应该留在左边那一栏');
+  // 输入控件必须在当前步骤（<li class="step active">）里面，
+  // 而不是排在阶梯之外 —— 这正是"看到哪儿做到哪儿"的钉法。
+  const active = html.match(/<li class="step active"[\s\S]*?<\/li>/);
+  assert.ok(active, '找不到当前步骤');
+  assert.ok(active[0].includes('answer-box') || active[0].includes('data-act="opt"'),
+    '作答控件没有内联在当前步骤里');
 });
 
 test('方法徽章跟着题型走，并且把方法的步骤显示出来', () => {
@@ -364,6 +383,31 @@ test('看题区有画笔开关，打开后能清掉笔迹', () => {
   const on = app.html();
   assert.ok(on.includes('q-canvas on'), '打开画笔后画布应当显示出来');
   assert.ok(on.includes('data-act="pen-clear"'), '打开画笔后应当能清掉笔迹');
+});
+
+test('画笔只铺在看题区：开着画笔点得到选项，关了画笔线不藏', () => {
+  // 这一条钉的是单栏内联之后冒出来的冲突：画布原来盖住整张题卡，
+  // 而选项 / 输入框现在也在题卡里 —— 开着画笔就什么都点不动；
+  // 关画笔时画布整个 display:none，笔迹明明还在数据里却看不见了。
+  const app = boot();
+  app.click('start');
+  app.click('pen');
+  const html = app.html();
+
+  const stageAt = html.indexOf('q-stage');
+  const stepsAt = html.indexOf('<ol class="steps">');
+  assert.ok(stageAt >= 0 && stepsAt > stageAt, '结构应当是：看题区在前，步骤在后');
+  const stage = html.slice(stageAt, stepsAt);
+  assert.ok(stage.includes('q-canvas on'), '画布应当铺在看题区里，且处于开启状态');
+  assert.ok(!stage.includes('data-act="opt"') && !stage.includes('answerInput'),
+    '作答控件不能落在画布底下，否则开着画笔点不动');
+  assert.ok(html.slice(stepsAt).includes('step-prompt'), '步骤要在画布之外');
+
+  app.click('pen');                      // 关掉画笔
+  const off = app.html();
+  assert.ok(off.includes('id="qCanvas"'),
+    '关了画笔画布也要留在页面上（笔迹继续可见，只是不再拦点击）');
+  assert.ok(!off.includes('q-canvas on'), '关掉之后画布不该还处于可画状态');
 });
 
 test('万以上的题能直接看数位，不用抄到纸上数', () => {
@@ -512,11 +556,15 @@ test('首页能选单元，选了第一单元就只出第一单元的题', () =>
 });
 
 test('家长报告能看到时间、正确率、每题用时和错点', () => {
-  const app = boot();
+  const app = boot({ passcode: '2468' });
   app.click('start');
   playThrough(app);
   app.click('home');
   app.click('parent');
+  // 报告页现在在口令门后面：先进去，输对口令才看得到内容
+  assert.ok(app.html().includes('请输入家长口令'), '应先要口令');
+  app.type('passInput', '2468');
+  app.click('unlock');
 
   const html = app.html();
   assert.ok(html.includes('家长报告'), '应当进入家长报告页');
@@ -529,9 +577,62 @@ test('家长报告能看到时间、正确率、每题用时和错点', () => {
 
 /* ==================== 其他 ==================== */
 
+test('首次进家长页先设口令，设好后落盘并进报告', () => {
+  const app = boot();               // 没有 passcode
+  app.click('parent');
+  assert.ok(app.html().includes('先设一个口令'), '没有口令时应引导设置');
+  // 太短的直接拒
+  app.type('passInput', '12');
+  app.click('set-pass');
+  assert.ok(app.html().includes('4～6 位'), '口令位数不够要拦住');
+  assert.ok(!app.state().passcode, '没设对之前不该落盘');
+  // 设成合法的
+  app.type('passInput', '2468');
+  app.click('set-pass');
+  assert.strictEqual(app.state().passcode, '2468', '设好后应写进本地存储');
+  assert.ok(app.html().includes('总览'), '设好即可进入报告');
+});
+
+test('口令不对进不去；没解锁时报告内容不外泄', () => {
+  const app = boot({ passcode: '2468', history: [{ ts: 1, isCorrect: false, stem: '123456 ≈（　）万', stepTags: ['WRONG_DIGIT'] }] });
+  app.click('parent');
+  assert.ok(app.html().includes('请输入家长口令'));
+  assert.ok(!app.html().includes('总览'), '没解锁不该看到报告正文');
+  assert.ok(!app.html().includes('123456'), '没解锁不该把错题题干露出来');
+  app.type('passInput', '0000');
+  app.click('unlock');
+  assert.ok(app.html().includes('口令不对'), '错口令应拒绝');
+  assert.ok(!app.html().includes('总览'), '错口令后仍不该进去');
+});
+
+test('离开家长页后解锁自动失效，回来重新要口令', () => {
+  const app = boot({ passcode: '2468' });
+  app.click('parent');
+  app.type('passInput', '2468');
+  app.click('unlock');
+  assert.ok(app.html().includes('总览'), '解锁后能看到报告');
+  app.click('home');
+  app.click('parent');
+  assert.ok(app.html().includes('请输入家长口令'), '回来看报告要重新输口令');
+});
+
+test('没解锁时点了清空或导出也不会有任何反应', () => {
+  const app = boot({ passcode: '2468', history: [{ ts: 1, isCorrect: true }] });
+  app.click('parent');              // 停在输口令页
+  app.click('reset');               // 假装孩子想办法触发了这两个动作
+  assert.ok(app.sandbox.localStorage.getItem('math-coach-v1'), '未解锁不该清空数据');
+  assert.ok(app.html().includes('请输入家长口令'), '未解锁点了导出也不该离开本页');
+});
+
 test('清空数据后回到初始状态', () => {
-  const app = boot();
+  const app = boot({ passcode: '2468' });
+  // "清空所有数据"挪进了口令门后面（以前它在孩子能进的掌握度页上，一点就没）
   app.click('progress');
+  assert.ok(!app.html().includes('清空所有数据'), '掌握度页不该再有清空按钮');
+  app.click('parent');
+  app.type('passInput', '2468');
+  app.click('unlock');
+  assert.ok(app.html().includes('清空所有数据'), '解锁后报告里应有清空');
   app.click('reset');
   assert.ok(app.html().includes('开始练习'), '清空后应当回到首页');
   assert.strictEqual(app.sandbox.localStorage.getItem('math-coach-v1'), null);
@@ -590,7 +691,7 @@ test('带坏数据重新打开：不能白屏，也不能假装没事', () => {
 test('阶梯题辅助步骤的错因要能在家长报告里看到', () => {
   const tag = 'WRONG_DIGIT';   // 「看的数位不对」——只有 tier 1 那一步探测得到
   const app = boot({
-    version: 1, childName: '', createdAt: 1, unit: 'all',
+    version: 1, childName: '', createdAt: 1, unit: 'all', passcode: '2468',
     mastery: { 'M4A-01-06': 0.4 },
     stats: { 'M4A-01-06': { attempts: 2, corrects: 1, wrongs: 1, lastPracticedAt: 1, level: 0, dueAt: 0, streak: 0, wrongStreak: 1 } },
     history: [{
@@ -603,6 +704,8 @@ test('阶梯题辅助步骤的错因要能在家长报告里看到', () => {
     sessions: []
   });
   app.click('parent');
+  app.type('passInput', '2468');
+  app.click('unlock');
   const html = app.html();
   assert.ok(html.includes('看的数位不对'),
     '辅助步骤测出的错因必须出现在家长报告里，否则这一步的探针白放');

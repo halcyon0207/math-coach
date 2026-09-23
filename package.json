@@ -1,6 +1,6 @@
 {
   "name": "math-coach",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
   "description": "数学小教练：错题驱动的四年级数学个性化练习（纯前端，核心链路不依赖大模型）",
   "scripts": {

@@ -29,7 +29,8 @@
       stats: {},      // kpId -> { attempts, corrects, wrongs, lastPracticedAt }
       history: [],    // 每一条作答
       sessions: [],   // 每次练习的汇总
-      unit: 'all'     // 这次练哪个单元（'all' = 全部混着来）
+      unit: 'all',    // 这次练哪个单元（'all' = 全部混着来）
+      passcode: ''    // 家长口令，空 = 还没设置。挡住的是"孩子自己进去看报告、清空数据"
     };
   }
 
@@ -56,7 +57,8 @@
         stats: obj(s.stats, {}),
         history: arr(s.history, []),
         sessions: arr(s.sessions, []),
-        unit: str(s.unit, 'all')
+        unit: str(s.unit, 'all'),
+        passcode: str(s.passcode, '')
       };
     } catch (e) {
       loadFailed = true;

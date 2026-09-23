@@ -37,7 +37,12 @@
     feedback: null,      // { tone: 'ok'|'warn'|'info'|'teach', text }
     questionStartAt: 0,
     results: [],
-    summary: null
+    summary: null,
+    // 家长报告的口令门。parentUnlocked 只在停留在报告页时为真 ——
+    // 一离开就归零，下次进来重新输，孩子连点几下也摸不到里面的错题和"清空数据"。
+    parentUnlocked: false,
+    passInput: '',       // 口令输入框当前内容（render 会换掉 DOM，得存这儿回填）
+    passMsg: ''          // 设口令/输口令时的提示
   };
 
   var el = function (id) { return document.getElementById(id); };
@@ -163,7 +168,7 @@
       '<h2 class="card-title">学习进度</h2>' +
       '<p class="card-note">看看哪块亮、哪块暗。</p>' +
       '<button class="btn btn-ghost btn-block" data-act="progress">查看掌握度地图</button>' +
-      '<button class="btn btn-ghost btn-block" data-act="parent">家长报告（时间 · 效率 · 错点）</button>' +
+      '<button class="btn btn-ghost btn-block" data-act="parent">家长报告（家长 · 需口令）</button>' +
       '</div>' +
 
       '<p class="footnote">数据只保存在这台设备上，不会上传。</p>';
@@ -252,7 +257,6 @@
         ? '目前为止你用了 ' + hintSessions + ' 次提示（共 ' + totalH + ' 题）。用提示不可耻，用得越来越少才是进步。'
         : '提示不扣分。用提示是好事，说明你想把题做对。') +
       '</p>' +
-      '<button class="btn btn-ghost btn-block" data-act="reset">清空所有数据</button>' +
       '</div>';
   }
 
@@ -270,11 +274,14 @@
       return '<i class="' + cls + '"></i>';
     }).join('');
 
-    var step = q.steps[app.activeStep];
     var questionDone = q.steps.every(function (_, i) { return app.stepStates[i].done; });
 
-    // 左边这一栏只说明"这一步问的是什么"，输入控件统一挪到作答区，
-    // 这样电脑上就是"左边看、右边做"，手机上自然叠成一列。
+    // 单栏内联：看到哪儿，做到哪儿。
+    //
+    // 以前是"左边看题、右边作答"两栏 + 一块独立的作答区。作答区看着体面，
+    // 实际上是把当前这一步的问题原样抄了一遍，眼睛还得在两栏之间来回找。
+    // 现在输入框和选项直接排在题目下面那一步里 —— 每一步答完就地打勾，
+    // 下一步自己展开，整页一列，手机上也不会有东西盖住题干。
     var stepsHtml = q.steps.map(function (s, i) {
       var ss = app.stepStates[i];
       var cls = ss.done ? (ss.isCorrect ? 'done-ok' : 'done-bad')
@@ -288,15 +295,33 @@
           body += '<div class="step-correct">正确答案：<b>' + esc(displayAnswer(s, s.answer)) + '</b></div>';
         }
       } else if (cls === 'active') {
-        body = '<div class="step-doing">' +
-          '<span class="on-mobile">在下面作答 ↓</span>' +
-          '<span class="on-desktop">在右边作答 →</span>' +
+        if (s.type === 'choice') {
+          body = '<div class="options">' + s.options.map(function (o) {
+            var on = String(app.choiceValue) === String(o.value);
+            return '<button class="opt' + (on ? ' on' : '') + '" data-act="opt" data-v="' + esc(o.value) + '">' +
+              esc(o.label) + '</button>';
+          }).join('') + '</div>';
+        } else {
+          // 用真的 input，让手机直接弹系统输入法。
+          //
+          // 以前是自己画一排数字键，手机上要点半天，退格也不顺手。
+          // type 用 text + inputmode="numeric"：iOS 和安卓都会给数字键盘，
+          // 又不会像 type=number 那样冒出步进箭头、把空格和前导 0 吃掉。
+          body = '<div class="answer-box">' +
+            '<input id="answerInput" class="answer-input" type="text" inputmode="numeric" ' +
+            'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ' +
+            'enterkeyhint="done" placeholder="点一下，用输入法直接填" ' +
+            'value="' + esc(app.input) + '">' +
+            '</div>';
+        }
+        body += '<div class="step-kbd-hint">' +
+          (s.type === 'choice' ? '按数字键 1 / 2 / 3 选择，回车确认' : '用键盘直接输入，回车确认') +
           '</div>';
       } else {
         body = '<div class="step-locked">待完成</div>';
       }
 
-      return '<li class="step ' + cls + '">' +
+      return '<li class="step ' + cls + '"' + (cls === 'active' ? ' id="active-step"' : '') + '>' +
         '<div class="step-head"><span class="step-no">' + (i + 1) + '</span>' +
         '<span class="step-prompt">' + esc(s.prompt) + '</span></div>' +
         body + '</li>';
@@ -304,43 +329,8 @@
 
     var feedback = '';
     if (app.feedback) {
-      feedback = '<div class="feedback ' + app.feedback.tone + '">' + esc(app.feedback.text) +
+      feedback = '<div class="feedback ' + app.feedback.tone + '" id="step-feedback">' + esc(app.feedback.text) +
         (app.feedback.tone === 'teach' ? '<div class="teach-body">' + esc(app.feedback.detail || '') + '</div>' : '') +
-        '</div>';
-    }
-
-    // ---------- 作答区 ----------
-    var workzone;
-    if (questionDone) {
-      workzone = '<div class="wz-done">这道题做完了</div>';
-    } else {
-      var inputHtml;
-      if (step.type === 'choice') {
-        inputHtml = '<div class="options">' + step.options.map(function (o) {
-          var on = String(app.choiceValue) === String(o.value);
-          return '<button class="opt' + (on ? ' on' : '') + '" data-act="opt" data-v="' + esc(o.value) + '">' +
-            esc(o.label) + '</button>';
-        }).join('') + '</div>';
-      } else {
-        // 用真的 input，让手机直接弹系统输入法。
-        //
-        // 以前是自己画一排数字键，手机上要点半天，退格也不顺手。
-        // type 用 text + inputmode="numeric"：iOS 和安卓都会给数字键盘，
-        // 又不会像 type=number 那样冒出步进箭头、把空格和前导 0 吃掉。
-        inputHtml = '<div class="answer-box">' +
-          '<input id="answerInput" class="answer-input" type="text" inputmode="numeric" ' +
-          'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ' +
-          'enterkeyhint="done" placeholder="点一下，用输入法直接填" ' +
-          'value="' + esc(app.input) + '">' +
-          '</div>';
-      }
-      workzone =
-        '<div class="wz-label">第 ' + (app.activeStep + 1) + ' 步' +
-        (q.steps.length > 1 ? ' · 共 ' + q.steps.length + ' 步' : '') + '</div>' +
-        '<div class="wz-prompt">' + esc(step.prompt) + '</div>' +
-        inputHtml +
-        '<div class="wz-kbd-hint">' +
-        (step.type === 'choice' ? '按数字键 1 / 2 / 3 选择，回车确认' : '用键盘直接输入，回车确认') +
         '</div>';
     }
 
@@ -373,7 +363,7 @@
       (bigN ? '<button class="btn btn-soft btn-sm" data-act="ruler">' +
         (app.showRuler ? '收起数位' : '看看数位') + '</button>' : '') +
       '</div>' +
-      (app.penOn ? '<div class="pen-tip">手指直接在题目上画，画错了点「清掉笔迹」。</div>' : '');
+      (app.penOn ? '<div class="pen-tip">在题目上直接画（分级线、圈 0 都行）。关了画笔线也留着，点「清掉笔迹」才擦。</div>' : '');
 
     // 方法徽章 + 步骤，让"这个方法具体怎么做"在题目上就能看见，不用去别处找
     var methodBar = '';
@@ -393,30 +383,23 @@
       '<span class="topbar-right">' + (app.cursor + 1) + '/' + total + '</span>' +
       '</div>' +
 
-      '<div class="practice-grid">' +
-
-      '<div class="col-main">' +
       '<div class="why"><span class="why-k">为什么给你出这道题</span>' + esc(q.reason) + '</div>' +
       '<div class="card card-q">' +
+      // 画布只盖"看题区"（题干和图），不盖下面的步骤 ——
+      // 单栏内联之后作答控件也在题卡里，整张卡都铺上画布的话，
+      // 开了画笔就点不到选项和输入框了。数字本来就在题干里，够画。
+      '<div class="q-stage">' +
       '<canvas id="qCanvas" class="q-canvas' + (app.penOn ? ' on' : '') + '"></canvas>' +
       methodBar +
       (q.stem ? '<div class="stem"><span class="stem-label">题目</span>' + esc(q.stem) + '</div>' : '') +
       (q.figure ? figureHtml(q.figure) : '') +
+      '</div>' +
       '<ol class="steps">' + stepsHtml + '</ol>' +
       '</div>' +
-      '</div>' +
-
-      '<div class="col-side">' +
-      '<div class="workzone">' + workzone + '</div>' +
-      // 画笔和数位的开关必须放在作答区里：手机上作答区是钉在屏幕底部的，
-      // 放在题目那一栏的话，它就正好被这条挡住 —— 看得见却点不到。
       toolsHtml +
       rulerPanel +
       feedback +
-      actions +
-      '</div>' +
-
-      '</div>';
+      actions;
   }
 
   function displayAnswer(step, v) {
@@ -784,6 +767,15 @@
     app.activeStep = q.steps.length;
   }
 
+  // 单栏内联之后整页变长了（探究题有 7 步），答完一步要把它接住的
+  // 下一步/反馈滚进视野，否则孩子要点两次提交才知道页面没反应。
+  function reveal(id) {
+    var node = el(id);
+    if (node && typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
   function submitAnswer() {
     var q = currentQuestion();
     var i = app.activeStep;
@@ -854,6 +846,7 @@
       }
     }
     render();
+    reveal(app.activeStep !== i ? 'active-step' : 'step-feedback');
   }
 
   function pickOkText(attempts) {
@@ -871,6 +864,7 @@
     app.hintUsedInQuestion = true;
     app.feedback = { tone: 'info', text: '提示' + app.hintLevel + '：' + E.hintFor(step, app.hintLevel) };
     render();
+    reveal('step-feedback');
   }
 
   function finishQuestion() {
@@ -997,6 +991,44 @@
     var state = app.state;
     var hist = state.history || [];
 
+    var topbar = function (title) {
+      return '<div class="topbar">' +
+        '<button class="btn-icon" data-act="home">←</button>' +
+        '<span class="topbar-title">' + title + '</span>' +
+        '<span class="topbar-right"></span>' +
+        '</div>';
+    };
+    var passErr = function () {
+      return app.passMsg ? '<div class="feedback warn">' + esc(app.passMsg) + '</div>' : '';
+    };
+
+    // 第一次进来先设口令。报告里有错题、正确答案和"清空所有数据"，
+    // 没有这道门，孩子自己就能点清空，练几个月的记录一秒没了还查不出是谁点的。
+    if (!state.passcode) {
+      return topbar('家长报告') +
+        '<div class="card">' +
+        '<h2 class="card-title">先设一个口令</h2>' +
+        '<p class="card-note">这里能看到错题、导出记录，还能清空数据，给孩子看不合适。设个 4～6 位数字。</p>' +
+        '<input id="passInput" class="pass-input" type="text" inputmode="numeric" autocomplete="off" ' +
+        'placeholder="输入口令" value="' + esc(app.passInput) + '">' +
+        '<button class="btn btn-primary btn-block" data-act="set-pass">设好，进去看报告</button>' +
+        passErr() +
+        '</div>';
+    }
+
+    if (!app.parentUnlocked) {
+      return topbar('家长报告') +
+        '<div class="card">' +
+        '<h2 class="card-title">请输入家长口令</h2>' +
+        '<input id="passInput" class="pass-input" type="password" inputmode="numeric" autocomplete="off" ' +
+        'placeholder="家长口令" value="' + esc(app.passInput) + '">' +
+        '<button class="btn btn-primary btn-block" data-act="unlock">确定</button>' +
+        '<p class="card-note">忘了口令？只有清空数据重来（下方"清空所有数据"进不来，需清本地数据），' +
+        '口令是明文存在这台设备上的，挡住的是孩子顺手点开，不防别人翻这台设备。</p>' +
+        passErr() +
+        '</div>';
+    }
+
     // 按场次聚合：一场总共用了多久、平均每题几秒
     var bySession = {};
     hist.forEach(function (h) {
@@ -1065,11 +1097,7 @@
       }).join('');
 
     return '' +
-      '<div class="topbar">' +
-      '<button class="btn-icon" data-act="home">←</button>' +
-      '<span class="topbar-title">家长报告</span>' +
-      '<span class="topbar-right"></span>' +
-      '</div>' +
+      topbar('家长报告') +
 
       '<div class="card">' +
       '<h2 class="card-title">总览</h2>' +
@@ -1095,6 +1123,12 @@
       '<div class="card">' +
       '<h2 class="card-title">最近的错题</h2>' +
       (wrongRows || '<p class="card-note">还没有错题，很好。</p>') +
+      '</div>' +
+
+      '<div class="card card-quiet">' +
+      '<h2 class="card-title">清空数据</h2>' +
+      '<p class="card-note">换孩子用、或者重新开始。会连同这条口令一起清掉，不能撤销。</p>' +
+      '<button class="btn btn-ghost btn-block" data-act="reset">清空所有数据</button>' +
       '</div>';
   }
 
@@ -1136,6 +1170,13 @@
   /* ============================== 渲染与事件 ============================== */
   function render() {
     var root = el('app');
+    // 离开家长页就把解锁收回。下次点进来重新要口令 ——
+    // 不然家长看完报告切回首页、孩子再点进去就是敞开的。
+    if (app.view !== 'parent') {
+      app.parentUnlocked = false;
+      app.passInput = '';
+      app.passMsg = '';
+    }
     var html = app.view === 'home' ? viewHome()
       : app.view === 'practice' ? viewPractice()
         : app.view === 'result' ? viewResult()
@@ -1167,8 +1208,10 @@
   // 手机上的输入法也会被收起来 —— 那还不如回到自己画的那排数字键。
   function onInput(e) {
     var t = e.target;
-    if (!t || t.id !== 'answerInput') return;
-    app.input = t.value;
+    if (!t) return;
+    if (t.id === 'answerInput') { app.input = t.value; return; }
+    // 口令框同理：只记账不 render，否则打一个字失焦一次，根本没法输完
+    if (t.id === 'passInput') app.passInput = t.value;
   }
 
   function onClick(e) {
@@ -1184,13 +1227,47 @@
     if (act === 'start') return startSession();
     if (act === 'home') { app.session = null; app.view = 'home'; return render(); }
     if (act === 'progress') { app.view = 'progress'; return render(); }
-    if (act === 'parent') { app.view = 'parent'; return render(); }
+    if (act === 'parent') {
+      app.view = 'parent';
+      app.passInput = '';
+      app.passMsg = '';
+      return render();
+    }
+    if (act === 'set-pass') {
+      var pv = (app.passInput || '').trim();
+      if (!/^\d{4,6}$/.test(pv)) {
+        app.passMsg = '口令要 4～6 位数字。';
+        return render();
+      }
+      app.state.passcode = pv;
+      app.parentUnlocked = true;
+      app.passInput = '';
+      app.passMsg = '';
+      saveState();
+      return render();
+    }
+    if (act === 'unlock') {
+      if ((app.passInput || '').trim() !== app.state.passcode) {
+        app.passMsg = '口令不对。';
+        app.passInput = '';
+        return render();
+      }
+      app.parentUnlocked = true;
+      app.passInput = '';
+      app.passMsg = '';
+      return render();
+    }
     if (act === 'unit') {
       app.state.unit = t.getAttribute('data-u') || 'all';
       saveState();
       return render();
     }
-    if (act === 'export-csv') return exportCsv();
+    // 导出和清空都只在口令门后面才认。孩子就算把按钮 HTML 印出来点了，
+    // 没解锁也什么都不会发生。
+    if (act === 'export-csv') {
+      if (!app.parentUnlocked) return;
+      return exportCsv();
+    }
     if (act === 'quit') return quitSession();
     if (act === 'pen') {
       // 开关只切"能不能画"，不清笔迹：孩子只是想点一下提示再回来接着画，
@@ -1209,8 +1286,12 @@
     if (act === 'hint') return useHint();
     if (act === 'next') return nextQuestion();
     if (act === 'reset') {
+      if (!app.parentUnlocked) return;
       if (window.confirm('确定清空所有练习记录吗？这个操作不能撤销。')) {
         app.state = S.reset();
+        app.parentUnlocked = false;
+        app.passInput = '';
+        app.passMsg = '';
         app.view = 'home';
         render();
       }

@@ -68,6 +68,9 @@
     RELATION_WRONG: { label: '倍数关系记错了', advice: '1 周角 = 2 平角 = 4 直角（360 = 2×180 = 4×90）。记住这一串就够。' },
     EDGE_LENGTH_CONFUSE: { label: '以为边画得越长角就越大', advice: '角的大小只和两条边张开的程度有关，和边画得长不长没有关系。' },
     CANNOT_MAKE: { label: '这个角用一副三角尺拼不出来', advice: '一副三角尺只有 30°、45°、60°、90°，把它们相加或相减，能拼出的角是固定的几个。' },
+    MAKEABLE_MISSED: { label: '能拼出的角被当成了拼不出来', advice: '能拼出的角一共七个：15°、75°、105°、120°、135°、150°、180°。两块尺各取一个角，加一加、减一减。' },
+    COMBO_WRONG: { label: '拼法对不上这个角', advice: '把你选的那两个角加一加（或减一减），得数是不是题目问的角？' },
+    TRI_CALC: { label: '两个角度数算错了', advice: '把两个角写在纸上对齐了再加减，别在心里硬记。' },
     // ---- 第三单元 相交与平行 ----
     INTERSECT_AS_PERP: { label: '以为相交就是垂直', advice: '两条直线相交不一定垂直 —— 只有相交成直角（90°）才叫互相垂直。先看夹角是多少度。' },
     PERP_NOT_RECOGNIZED: { label: '没认出直角', advice: '看到 90°（或者画着直角符号的那个角），这两条直线就是互相垂直。' },
@@ -963,6 +966,16 @@
   }
 
   // 族 K：三角尺拼角（教材 P37 例题）
+  //
+  // 一副三角尺（30/60/90 和 45/45/90）能拼出的角是固定的七个：
+  // 15、75、105、120、135、150、180。这个知识点的考法就两种 ——
+  // 判断某个角拼不拼得出来；反过来，说出某个角是哪两个角拼的。
+  // 所以拆成两个模板族：
+  //   · familyTriangleExplore —— 探究题。第一次接触这个知识点先做它：
+  //     七个得数一个一个亲手算出来，整张表是孩子自己搭起来的，不是背下来的。
+  //     题面就给了"相加或相减"的搭法顺序（先加后减），顺序本身就是方法。
+  //   · familyTriangleMake —— 两步式日常练习：先判断"能不能拼"，再找"怎么拼"。
+  //     判断题是探针，答"能/不能"错在哪一边，归因就落在哪一边。
   var MAKEABLE = [
     { deg: 75, expr: '30° + 45°', a: 30, b: 45, op: '+' },
     { deg: 105, expr: '60° + 45°', a: 60, b: 45, op: '+' },
@@ -975,6 +988,50 @@
   // 这几个是拼不出来的，刻意挑了"看着很像"的：100、115、130 常被误以为能拼
   var UNMAKEABLE = [20, 50, 65, 80, 100, 115, 130, 145, 160, 170];
 
+  function exploreDistractors(m, part) {
+    return dedupeDistractors(part, [
+      { value: m.op === '+' ? Math.abs(m.a - m.b) : m.a + m.b, tag: 'TRI_CALC' },
+      { value: part + 10, tag: 'TRI_CALC' },
+      { value: part - 10, tag: 'TRI_CALC' }
+    ]);
+  }
+
+  function familyTriangleExplore(spec) {
+    return {
+      id: spec.id,
+      kp: spec.kp,
+      difficulty: spec.difficulty,
+      shape: spec.shape,
+      method: spec.method,
+      gen: function () {
+        // 七种拼法按固定顺序列出来，不打乱 —— 这是第一次搭表，不是考核。
+        // 前六道是加法（核心是"哪两个角接在一起"），最后那道减法
+        // （45−30=15，"两个角叠起来差多少"）单独当核心步骤：
+        // 孩子如果只会加不会减，到这一步就会被问住，探针才有牙齿。
+        var steps = MAKEABLE.map(function (m, i) {
+          var part = m.op === '+' ? m.a + m.b : m.a - m.b;
+          return {
+            id: 'make' + i,
+            tier: i === MAKEABLE.length - 1 ? 0 : 1,
+            type: 'number',
+            prompt: m.expr + ' = ?',
+            answer: part,
+            distractors: exploreDistractors(m, part),
+            hint: m.op === '+'
+              ? '两块尺各拿出一个角，贴着边接起来，从 ' + m.a + ' 往后数 ' + m.b + '。'
+              : '把小的那个角叠在大的上面，对齐一条边，露出来的就是差。',
+            teach: [m.expr + ' = ' + part + '°']
+          };
+        });
+        return {
+          stem: '一副三角尺上有 30°、45°、60°、90° 这些角。两块各取一个拼在一起（相加或相减），把每种拼法的得数都算出来，就能把能拼出的角一次找全。',
+          steps: steps,
+          facts: { kind: 'triangle-explore', expect: steps[steps.length - 1].answer }
+        };
+      }
+    };
+  }
+
   function familyTriangleMake(spec) {
     return {
       id: spec.id,
@@ -984,43 +1041,78 @@
       method: spec.method,
       gen: function (rng) {
         var m = MAKEABLE[pickInt(rng, 0, MAKEABLE.length - 1)];
-        var deg = m.deg;
-        var part = m.op === '+' ? m.a + m.b : m.a - m.b;
-        var wrong = shuffle(rng, UNMAKEABLE).slice(0, 3);
 
+        if (rng() < 0.6) {
+          // —— 能拼出的角：第一步判断，第二步说出是哪一组拼出来的 ——
+          var others = shuffle(rng, MAKEABLE.filter(function (x) { return x.deg !== m.deg; })).slice(0, 3);
+          return {
+            stem: '一副三角尺上的角是 30°、45°、60°、90°。两块各取一个拼一拼（相加或相减）。',
+            steps: [
+              {
+                id: 'judge', tier: 1, type: 'choice',
+                prompt: m.deg + '° 可以用一副三角尺拼出来吗？',
+                // 选项值用 1 / 2：步骤答案必须是正整数，判分走 Number 相等。
+                answer: 1,
+                options: shuffle(rng, [
+                  { value: 1, label: '能拼出来', tag: null },
+                  { value: 2, label: '拼不出来', tag: 'MAKEABLE_MISSED' }
+                ]),
+                hint: '两块尺各挑一个角，加一加、减一减，看凑不凑得出它。',
+                teach: [m.deg + '° = ' + m.expr + '，能拼出来']
+              },
+              {
+                id: 'combo', tier: 0, type: 'choice',
+                prompt: m.deg + '° 是用下面哪一组角拼出来的？',
+                // 选项值就用各组的得数：这样"答对了"和"知道怎么拼"是同一件事，
+                // facts.expect 也能继续对着程序算出的数判。
+                answer: m.deg,
+                options: shuffle(rng, [{ value: m.deg, label: m.expr, tag: null }].concat(
+                  others.map(function (o) { return { value: o.deg, label: o.expr, tag: 'COMBO_WRONG' }; })
+                )),
+                hint: '把每个选项的得数算一算，哪一个正好是题目问的那个角？',
+                teach: [
+                  m.deg + '° = ' + m.expr,
+                  others.map(function (o) { return o.expr + ' = ' + o.deg + '°'; }).join('，')
+                ]
+              }
+            ],
+            facts: { kind: 'triangle-make', deg: m.deg, expect: m.deg }
+          };
+        }
+
+        // —— 拼不出的角：第一步判断，第二步在选项里认出真能拼出的那个 ——
+        var pool = shuffle(rng, UNMAKEABLE);
+        var deg = pool[0];
+        var wrong = pool.slice(1, 4);
         return {
-          stem: '一副三角尺上的角是 30°、45°、60°、90°。把它们拼在一起（相加或相减），能拼出哪些角？',
+          stem: '一副三角尺上的角是 30°、45°、60°、90°。两块各取一个拼一拼（相加或相减）。',
           steps: [
             {
-              id: 'part',
-              tier: 1,
-              type: 'number',
-              prompt: m.a + '° ' + (m.op === '+' ? '+' : '−') + ' ' + m.b + '° = ?',
-              answer: part,
-              distractors: dedupeDistractors(part, [
-                { value: m.a + m.b, tag: 'SUB_CALC' },
-                { value: Math.abs(m.a - m.b), tag: 'SUB_CALC' }
+              id: 'judge', tier: 1, type: 'choice',
+              prompt: deg + '° 可以用一副三角尺拼出来吗？',
+              answer: 2,
+              options: shuffle(rng, [
+                { value: 1, label: '能拼出来', tag: 'CANNOT_MAKE' },
+                { value: 2, label: '拼不出来', tag: null }
               ]),
-              hint: '就是这两个角合在一起（或相差）是多少度。',
-              teach: [m.a + '° ' + (m.op === '+' ? '+' : '−') + ' ' + m.b + '° = ' + part + '°']
+              hint: '两块尺各挑一个角，把能拼出的挨个排一排，看它在不在这张表里。',
+              teach: [deg + '° 不在能拼出的那七个角里，拼不出来']
             },
             {
-              id: 'pick',
-              tier: 0,
-              type: 'choice',
+              id: 'pick', tier: 0, type: 'choice',
               prompt: '下面哪个角可以用一副三角尺拼出来？',
-              answer: deg,
-              options: shuffle(rng, [{ value: deg, label: deg + '°', tag: null }].concat(
+              answer: m.deg,
+              options: shuffle(rng, [{ value: m.deg, label: m.deg + '°', tag: null }].concat(
                 wrong.map(function (v) { return { value: v, label: v + '°', tag: 'CANNOT_MAKE' }; })
               )),
               hint: '先把能拼的都列出来：30+45、60+45、90+30、90+45、60+90、90+90、45−30。',
               teach: [
                 '一副三角尺能拼出：15°、75°、105°、120°、135°、150°、180°',
-                deg + '° = ' + m.expr + '，所以拼得出来'
+                m.deg + '° = ' + m.expr + '，所以拼得出来'
               ]
             }
           ],
-          facts: { kind: 'triangle-make', deg: deg, expect: deg }
+          facts: { kind: 'triangle-make-no', deg: deg, expect: m.deg }
         };
       }
     };
@@ -1869,6 +1961,11 @@
       family: familyTriangleMake, id: 'T-0204-B', kp: 'M4A-02-04', difficulty: 0.55,
       shape: '一副三角尺能拼出哪个角', method: 'M-WHOLE-ANGLE'
     },
+    {
+      // 探究题：第一次接触"三角尺拼角"时先做它（见 engine 的 intro 选題逻辑）
+      family: familyTriangleExplore, id: 'T-0204-E', kp: 'M4A-02-04', difficulty: 0.40, intro: true,
+      shape: '把一副三角尺能拼出的角一次找全', method: 'M-WHOLE-ANGLE'
+    },
 
     // ==================================================================
     // 下面这批是补齐单元时加的。
@@ -2136,7 +2233,12 @@
     }
   ];
 
-  var TEMPLATES = SPECS.map(function (s) { return s.family(s); });
+  var TEMPLATES = SPECS.map(function (s) {
+    var t = s.family(s);
+    // intro 是"这个知识点第一次露面先出这道探究题"的标记，由组卷层使用
+    if (s.intro) t.intro = true;
+    return t;
+  });
 
   var byKp = {};
   TEMPLATES.forEach(function (t) {

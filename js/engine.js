@@ -229,13 +229,26 @@
     };
   }
 
-  function chooseTemplate(pool, targetDiff, rng, recentIds) {
+  // introKp：这个名额要优先出探究题的知识点 id（null = 不需要）。
+  // 必须按知识点过滤 —— 热身之外的名额（比如压轴题）用的是全池，
+  // 不过滤会把别的知识点的探究题抓过来，还会在一次练习里撞出重复题。
+  function chooseTemplate(pool, targetDiff, rng, recentIds, introKp) {
+    // 探究题（intro）只有一条出场路径：这个知识点的**第一次**露面。
+    // 平时按难度挑模板时把它排除掉 —— 一道七步的整理题反复出现，
+    // 挤掉的是该练的判断题，孩子烦了，自适应也没了抓手。
+    if (introKp) {
+      var intros = pool.filter(function (t) { return t.intro && t.kp === introKp; });
+      if (intros.length) return intros[0];
+    }
+    var candidates = pool.filter(function (t) { return !t.intro; });
+    if (!candidates.length) candidates = pool;
+
     // 两级退让：先保证"不和上一题同模板"，再尽量避开更早用过的。
     // 池子里只有一个模板时只能重复 —— 这是内容问题（该补模板了），
     // 不该用"随机撞一下"来掩盖。
     var last = recentIds.length ? recentIds[recentIds.length - 1] : null;
-    var noLast = pool.filter(function (t) { return t.id !== last; });
-    if (!noLast.length) noLast = pool;
+    var noLast = candidates.filter(function (t) { return t.id !== last; });
+    if (!noLast.length) noLast = candidates;
 
     var stricter = noLast.filter(function (t) { return recentIds.indexOf(t.id) === -1; });
     var use = stricter.length ? stricter : noLast;
@@ -249,13 +262,17 @@
 
   // 「为什么给你出这道题」—— 把 AI 的判断过程摊开给孩子看。
   // 这既是透明度，也是"看得见的方法"：他慢慢会知道系统在盯什么。
-  function reasonFor(kind, kp, st) {
+  function reasonFor(kind, kp, st, isIntro) {
     var name = kp ? kp.name : '';
     if (kind === 'warmup') {
       return '热身题。这两道比较简单，先把状态找回来。';
     }
     if (kind === 'weak') {
-      if (st.attempts === 0) return '「' + name + '」你还没练过，先看看掌握得怎么样。';
+      if (st.attempts === 0) {
+        return isIntro
+          ? '「' + name + '」你还没练过。这道题不考试，带你一步一步把答案自己找出来，先搭表，再考核。'
+          : '「' + name + '」你还没练过，先看看掌握得怎么样。';
+      }
       if (st.wrongs > 0) return '你在「' + name + '」上错过了 ' + st.wrongs + ' 次，再练一下。';
       return '「' + name + '」还不太稳，再来几道。';
     }
@@ -405,11 +422,20 @@
     var questions = [];
     var recent = [];
     var usedQids = {};
+    // 探究题一场只出一次：state 在组卷过程中不会变（作答记录要练完才写回），
+    // 光看 attempts === 0 会让同一知识点的第二个名额又抓一次探究题，
+    // 而它生成的题目是完全相同的。
+    var introDone = {};
 
     slots.forEach(function (slot) {
+      // 传知识点 id（不是布尔）：chooseTemplate 只认"这个知识点的探究题"，
+      // 免得把别的知识点的探究题抓到热身 / 压轴名额里。
+      var introKp = (slot.kp && statsOf(state, slot.kp.id).attempts === 0 && !introDone[slot.kp.id])
+        ? slot.kp.id : null;
       var tpl = null, q = null, tries = 0;
       while (tries < 12) {
-        tpl = chooseTemplate(slot.pool, slot.diff, rng, recent);
+        tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp);
+        if (tpl.intro) introDone[tpl.kp] = true;
         var kpId2 = tpl.kp;
         var lvl = scaffoldLevelFor(masteryOf(state, kpId2), statsOf(state, kpId2));
         q = buildQuestion(tpl, rng, lvl);
@@ -422,7 +448,7 @@
 
       var kpInfo = slot.kp || Knowledge.byId(tpl.kp);
       var st = statsOf(state, tpl.kp);
-      q.reason = reasonFor(slot.kind, kpInfo, st);
+      q.reason = reasonFor(slot.kind, kpInfo, st, !!tpl.intro);
       q.slotKind = slot.kind;
       questions.push(q);
     });

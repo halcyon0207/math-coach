@@ -286,31 +286,13 @@ html, body {
 .footnote { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 0; }
 
 /* ==========================================================================
-   电脑网页版
-   布局思路：手机上一列（题目在上、作答在下）；电脑上变成"左边看题、右边作答"，
-   键盘和按钮都在右手边。两栏只是换个摆法，交互逻辑完全一样。
+   练习页：单栏，看到哪儿做到哪儿
+   输入框和选项直接内联在当前步骤里（.step.active 内部），
+   不再另起一块独立的"作答区"。
    ========================================================================== */
 
-.practice-grid { display: block; }
-
-.workzone {
-  background: var(--card);
-  border: 2px solid var(--primary);
-  border-radius: var(--radius);
-  padding: 14px 14px 16px;
-  margin-bottom: 12px;
-}
-.wz-label { font-size: 12px; font-weight: 700; color: var(--primary); letter-spacing: .3px; }
-.wz-prompt { font-size: 23px; font-weight: 700; margin: 4px 0 0; line-height: 1.35; letter-spacing: .3px; }
-.wz-done { text-align: center; color: var(--muted); font-size: 14px; padding: 10px 0; }
-.wz-kbd-hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
-
-/* 输入控件挪进作答区之后，不再需要原来给阶梯留的左边距 */
-.workzone .answer-box { margin: 12px 0 0; }
-.workzone .options { margin: 12px 0 0; }
-
-.step-doing { margin: 8px 0 0 30px; color: var(--primary); font-size: 13px; font-weight: 600; }
-.on-desktop { display: none; }
+/* 步骤里的键盘提示：只在真有物理键盘的路子上出现（手机端下面会隐藏） */
+.step-kbd-hint { margin: 8px 0 0 30px; font-size: 12px; color: var(--muted); }
 
 .method-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
 .method-bar .badge-method { margin-bottom: 0; }
@@ -330,20 +312,8 @@ html, body {
 @media (min-width: 1040px) {
   #app { max-width: 1080px; }
   .view { padding: 28px 32px 56px; }
-  .view-home, .view-result, .view-progress { max-width: 760px; margin: 0 auto; }
+  .view-home, .view-result, .view-progress, .view-practice { max-width: 760px; margin: 0 auto; }
 
-  .practice-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 20px;
-    align-items: start;
-  }
-  .col-side { position: sticky; top: 24px; }
-
-  .on-mobile { display: none; }
-  .on-desktop { display: inline; }
-  .workzone { padding: 18px 18px 20px; }
-  .wz-prompt { font-size: 25px; }
   .answer-box { min-height: 56px; font-size: 28px; }
 
   .hero h1 { font-size: 30px; }
@@ -354,57 +324,25 @@ html, body {
   .cta-line { font-size: 21px; }
 }
 
-/* ---- 鼠标悬停（只在真的有鼠标时才加）---- */
-/* ==================== 手机：作答区跟在题目后面（不再钉在屏幕底部） ==================== */
+/* ==================== 手机：压缩题目占的地方 ==================== */
 /*
- * 这里原先把作答区 position: fixed 钉在屏幕底部，理由是"题目一长，
- * 输入框和确认按钮就被推到屏幕外，得滑下去才够得着"。
- *
- * 实际用下来代价更大：那块固定区看起来像是从底下弹出来的另一个窗口，
- * 和题目割裂开；屏幕也被切成上下两半，题目能看到的区域只剩一半。
- *
- * 现在改成正常文档流 —— 作答区就排在题目下面，跟着页面一起滚。
- * 视觉上是一张卡片往下延续，不再有"另一个窗口"的感觉。
+ * 以前这里做的事是给"独立作答区"收尾 —— 和题干拼成一张卡、盖掉蓝框。
+ * 现在输入框本来就内联在当前步骤里，和题干天然在同一张卡里，
+ * 那些拼装规则全部不需要了，只剩"手机上把页面压短"这一件事。
  */
 @media (max-width: 1039px) {
   .view-practice { padding-bottom: 24px; }
 
-  /* 题目卡片和作答区拼成同一张卡片。
-     原来是两个独立的盒子，中间还有空隙 —— 一弹输入法，题干就被顶出屏幕，
-     孩子看着输入框却想不起题目问的是什么。拼成一张之后，题干和输入框
-     挨在一起，键盘弹起来也还在同一屏里。 */
-  .card-q { border-radius: 14px 14px 0 0; padding-bottom: 2px; }
-  .col-side {
-    margin-top: 0;
-    background: var(--card);
-    border-radius: 0 0 14px 14px;
-    padding: 0 14px 14px;
-  }
-
-  /* 作答区原本是一圈蓝色实线框，在手机上看起来就是"又弹出来一个窗口"。
-     改成一条虚线跟上面的题干分开就够了 —— 它是这张卡片的一部分，
-     不是另一个盒子。 */
-  .workzone {
-    background: transparent;
-    border: none;
-    border-top: 1px dashed var(--line);
-    border-radius: 0;
-    padding: 12px 0 0;
-    margin-bottom: 10px;
-  }
   .q-tools { margin-top: 8px; }
   .ruler-card { margin-top: 8px; }
 
   /* 选项排成一行，别竖着占掉半屏 */
-  .workzone .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .workzone .opt { padding: 10px 6px; font-size: 15px; }
+  .step .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .step .opt { padding: 10px 6px; font-size: 15px; }
 
-  /* 手机上把题目压短，争取一屏放得下题干 + 输入 + 按钮 */
   .method-bar .mchip { display: none; }   /* 方法的三个步骤收起来，只留徽章上的名字 */
-  .step.locked { display: none; }          /* 还没轮到的步骤先不占地方（进度在作答区写着） */
-  .wz-kbd-hint { display: none; }          /* 触屏上没有物理键盘这条路 */
-  .workzone { padding: 12px 12px 14px; }
-  .wz-prompt { font-size: 19px; }
+  .step.locked { display: none; }         /* 还没轮到的步骤先不占地方 */
+  .step-kbd-hint { display: none; }       /* 触屏上没有物理键盘这条路 */
 }
 @media (hover: hover) {
   .btn-primary:hover { filter: brightness(1.07); }
@@ -439,17 +377,41 @@ html, body {
 }
 .answer-input:focus { outline: none; border-color: var(--primary); background: var(--card); }
 
+/* 家长口令输入框：复用作答框的观感，字号小一点、下面留白给按钮 */
+.pass-input {
+  width: 100%;
+  padding: 12px 14px;
+  margin: 10px 0 12px;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: .3em;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+.pass-input::placeholder { font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.pass-input:focus { outline: none; border-color: var(--primary); background: var(--card); }
+
 /* ==================== 画笔（手指直接在题目上画）==================== */
-.card-q { position: relative; }
+/* 画布只铺在"看题区"（.q-stage）上：题干、插图在里面，步骤和作答控件在外面。
+   以前画布盖住整张题卡，开了画笔连选项都点不到 —— 单栏内联之后
+   作答控件也在题卡里，这个问题被放大了。
+   另外关画笔时不再 display:none 整块藏掉：笔迹留在原地（pointer-events:none
+   不拦操作），点「清掉笔迹」才真的擦。孩子"关一下再开"不该丢东西。 */
+.q-stage { position: relative; }
 .q-canvas {
   position: absolute;
   left: 0;
   top: 0;
-  display: none;
+  display: block;
+  pointer-events: none;
   touch-action: none;   /* 手指在题目上画的时候，别把页面一起带着滚 */
   z-index: 2;
 }
-.q-canvas.on { display: block; }
+.q-canvas.on { pointer-events: auto; }
 
 .q-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .btn-sm { padding: 7px 13px; font-size: 14px; border-radius: 999px; }
