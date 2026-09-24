@@ -1593,7 +1593,8 @@
     if (F) {
       F.init(app.state, {
         onStatus: function () { if (app.view === 'parent') render(); }
-      });
+        // 家庭码在语文 / 数学之间共用，第三参数把两边的数据隔开
+      }, 'math');
     }
 
     render();
