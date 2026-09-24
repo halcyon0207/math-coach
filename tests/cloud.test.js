@@ -77,7 +77,9 @@ function boot() {
 
   function type(id, value) { els.app._input[0]({ target: { id, value } }); }
 
-  return { sandbox, calls, click, type };
+  // 用真算法生成一个合法家庭码（最后一位是校验位，硬编码的码过不了校验）
+  const fam = sandbox.FamilySync.newCode();
+  return { sandbox, calls, click, type, fam };
 }
 
 function flush() { return new Promise(r => setImmediate(r)); }
@@ -104,7 +106,7 @@ test('开了家庭码：练完一场会把统计传上去（覆盖写，不是�
     app.state.history.push({ ts: Date.now(), kpId: 'M4A-04-04', isCorrect: i % 2 === 0, timeSpentMs: 5000 });
   }
 
-  t.sandbox.FamilySync.enable('k3f9-7wq2-xm4p');
+  t.sandbox.FamilySync.enable(t.fam);
   t.sandbox.__mc.pushReport();
   await flush();
 
@@ -118,7 +120,7 @@ test('开了家庭码：练完一场会把统计传上去（覆盖写，不是�
 
 test('报告页拉别的设备的统计，本机那份不算"别的设备"', async () => {
   const t = boot();
-  t.sandbox.FamilySync.enable('k3f9-7wq2-xm4p');
+  t.sandbox.FamilySync.enable(t.fam);
   const myDev = t.sandbox.FamilySync.sync().dev;
 
   // 云函数返回两台设备：本机 + 另一台
@@ -156,7 +158,7 @@ test('家长在自己手机上看报告：本机一场没练，也能看到孩�
   app.state.history = [];
   app.state.sessions = [];
   app.state.stats = {};
-  t.sandbox.FamilySync.enable('k3f9-7wq2-xm4p');
+  t.sandbox.FamilySync.enable(t.fam);
 
   const now = Date.now();
   t.sandbox.fetch = () => Promise.resolve({
@@ -193,7 +195,7 @@ test('家长在自己手机上看报告：本机一场没练，也能看到孩�
 
 test('清空数据：云端那份也要跟着清（不然别的设备还能看到旧数据）', async () => {
   const t = boot();
-  t.sandbox.FamilySync.enable('k3f9-7wq2-xm4p');
+  t.sandbox.FamilySync.enable(t.fam);
 
   t.click('parent');
   t.type('passInput', '1234');
