@@ -165,6 +165,9 @@
       '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
       '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前两道是热身。</div>' +
       '<button class="btn btn-primary btn-lg" data-act="start">开始练习</button>' +
+      // 家长和孩子都会问"这一场和上一场什么关系"。规则摆在按钮下面，不用去别处找。
+      '<p class="card-note">和刚做过的那一场不撞题型：练过的题型这场换成别的，' +
+      '同一个知识点也是新的数字。错过的、到期的、还没练过的会优先排进来。</p>' +
       '</div>' +
 
       '<div class="card">' +

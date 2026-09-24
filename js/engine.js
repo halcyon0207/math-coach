@@ -292,7 +292,7 @@
   // introKp：这个名额要优先出探究题的知识点 id（null = 不需要）。
   // 必须按知识点过滤 —— 热身之外的名额（比如压轴题）用的是全池，
   // 不过滤会把别的知识点的探究题抓过来，还会在一次练习里撞出重复题。
-  function chooseTemplate(pool, targetDiff, rng, recentIds, introKp) {
+  function chooseTemplate(pool, targetDiff, rng, recentIds, introKp, avoidIds, usedIds) {
     // 探究题（intro）只有一条出场路径：这个知识点的**第一次**露面。
     // 平时按难度挑模板时把它排除掉 —— 一道七步的整理题反复出现，
     // 挤掉的是该练的判断题，孩子烦了，自适应也没了抓手。
@@ -303,17 +303,23 @@
     var candidates = pool.filter(function (t) { return !t.intro; });
     if (!candidates.length) candidates = pool;
 
-    // 两级退让：先保证"不和上一题同模板"，再尽量避开更早用过的。
-    // 池子里只有一个模板时只能重复 —— 这是内容问题（该补模板了），
-    // 不该用"随机撞一下"来掩盖。
+    // 三级退让：一级一级放宽，收窄之后空了就退回上一级。
+    //   1) 这一场还没出过的（同一套卷子里尽量别撞题）
+    //   2) 最近两场也没出过的（连着做同一种考法，孩子会觉得"怎么又是这道题"）
+    //   3) 不是上一道题的题型
+    // 退让到最后一级是正常的：某个知识点只有一两种题型，那是内容该补了。
+    // 用"随机撞一下"来掩盖它，代价是选出难度完全不合适的题 —— 更亏。
+    var cand = candidates;
+    function narrow(fn) {
+      var next = cand.filter(fn);
+      if (next.length) cand = next;
+    }
+    if (usedIds) narrow(function (t) { return !usedIds[t.id]; });
+    if (avoidIds) narrow(function (t) { return !avoidIds[t.id]; });
     var last = recentIds.length ? recentIds[recentIds.length - 1] : null;
-    var noLast = candidates.filter(function (t) { return t.id !== last; });
-    if (!noLast.length) noLast = candidates;
+    narrow(function (t) { return t.id !== last; });
 
-    var stricter = noLast.filter(function (t) { return recentIds.indexOf(t.id) === -1; });
-    var use = stricter.length ? stricter : noLast;
-
-    var sorted = use.slice().sort(function (a, b) {
+    var sorted = cand.slice().sort(function (a, b) {
       return Math.abs(a.difficulty - targetDiff) - Math.abs(b.difficulty - targetDiff);
     });
     var top = sorted.slice(0, Math.min(2, sorted.length));
@@ -370,6 +376,14 @@
       var ma = masteryOf(state, a.id), mb = masteryOf(state, b.id);
       if (Math.abs(ma - mb) > 1e-6) return ma - mb;
       return statsOf(state, a.id).attempts - statsOf(state, b.id).attempts;
+    });
+
+    // 最近两场做过的题型：一单元的知识点就那么几个，连着两场很可能挑中同一批
+    // 模板 —— 题里的数字是新的，但考法一模一样，孩子会觉得"刚做过"。
+    // 取 history 尾部 20 条（大约两场）的模板 id，出题时优先避开（避不开就放开）。
+    var avoid = {};
+    (state.history || []).slice(-20).forEach(function (h) {
+      if (h && h.templateId) avoid[h.templateId] = 1;
     });
 
     // 先过一遍难度门禁：热身和压轴都只在"已经解锁的题"里挑。
@@ -493,6 +507,7 @@
     var questions = [];
     var recent = [];
     var usedQids = {};
+    var usedTplIds = {};   // 这一场已经出过的题型：同一套卷子里尽量不撞题型
     // 探究题一场只出一次：state 在组卷过程中不会变（作答记录要练完才写回），
     // 光看 attempts === 0 会让同一知识点的第二个名额又抓一次探究题，
     // 而它生成的题目是完全相同的。
@@ -505,7 +520,7 @@
         ? slot.kp.id : null;
       var tpl = null, q = null, tries = 0;
       while (tries < 12) {
-        tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp);
+        tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp, avoid, usedTplIds);
         if (tpl.intro) introDone[tpl.kp] = true;
         var kpId2 = tpl.kp;
         var lvl = scaffoldLevelFor(masteryOf(state, kpId2), statsOf(state, kpId2));
@@ -514,6 +529,7 @@
         tries++;
       }
       usedQids[q.qid] = 1;
+      usedTplIds[tpl.id] = 1;
       recent.push(tpl.id);
       if (recent.length > 2) recent.shift();
 
