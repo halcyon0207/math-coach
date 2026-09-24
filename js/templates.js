@@ -44,6 +44,10 @@
     ESTIMATE_PRODUCT: { label: '整十数相乘算错', advice: '这一步是口算，先算有效数字，再数 0。' },
     // ---- 第四单元 因数中间有 0 的乘法 ----
     MID_ZERO_SKIP: { label: '把因数中间的 0 漏掉了', advice: '306 中间的 0 也要占着数位，每一位都要乘到，不能跳过去。' },
+    // 教案《因数中间有 0 的乘法》点名的另一条：0×8 这一问，孩子会答成 8。
+    // 这和"漏掉"是两种错法 —— 漏掉是要教"每一位都要乘"，这一条是要教"0 乘任何数都得 0"，
+    // 讲错了话等于没讲，所以单独占一个标签。
+    ZERO_TIMES_ANY: { label: '以为 0 乘几还得几', advice: '0 × 4 = 0，不是 4。0 和任何数相乘都还是 0，这一位上要写 0 占住位置。' },
     PART_NO_SHIFT: { label: '十位乘出来的没有错开一位', advice: '用十位去乘，结果末尾要补一个 0（也就是向左错开一位）再相加。' },
     PART_SUM: { label: '两部分相加算错了', advice: '个位乘出来的和十位乘出来的，最后要加起来 —— 这一步最容易错。' },
     // ---- 第一单元 万以上数的认识 ----
@@ -92,6 +96,25 @@
     READ_VALUE_WRONG: { label: '条形高度读错了', advice: '数格子的时候要对齐纵轴的刻度，别凭"看起来多高"去猜。' },
     COMPARE_WRONG: { label: '比多少看反了', advice: '问"最多/最少"就先找出最高和最低的那两根；问"相差多少"就大数减小数。' },
     SUM_WRONG: { label: '加起来算错了', advice: '求一共多少，要把每一项都算进去，一项一项加起来，别漏掉。' },
+    // ---- 第四单元 探索规律：积的变化规律（教材 P52）----
+    // 这一课的错几乎都不在计算上，而在"积到底跟着变几回"上，所以按变化的次数分标签。
+    BASE_PROD: { label: '基准那道乘法算错了', advice: '先把原来那道算对 —— 它是整条规律的起点，起点错了后面全跟着错。' },
+    PATTERN_BASE: { label: '把原来那道题的积抄过来了', advice: '乘数变了，积一定跟着变。先看清楚乘数各自乘了几、除以几。' },
+    PATTERN_LINEAR: { label: '积只跟着变了一次', advice: '两个乘数都乘 k，积要被乘两回 k：先乘一次，再乘一次。' },
+    PATTERN_OVER: { label: '积变的次数多了', advice: '数一数有几个乘数在变：只有一个乘数变，积就只变一回。' },
+    PATTERN_DIV: { label: '该乘的除了、该除的乘了', advice: '乘数变大积才变大；乘数除以几（变小），积就跟着除以几。' },
+    PATTERN_ADD: { label: '把「乘两次」算成了「加两次」', advice: '两个乘数都乘 3，积要乘 3×3=9，不是 3+3=6。乘和加不一样。' },
+    // ---- 第五单元 归一 / 归总（教材 P64，教案：归一归总各给两种思路）----
+    NO_UNIT_STEP: { label: '没先求出一份是多少', advice: '先把一份（一个、一本、一小时）算出来，再去算要的那几份。' },
+    NO_TOTAL_STEP: { label: '没先求出一共是多少', advice: '这类题的总数不变。先用每份数 × 份数求出总数，再按新的每份数去分。' },
+    UNIT_RATE_CALC: { label: '求一份那一步算错了', advice: '求一份是平均分，用除法。算完可以拿它乘回原来的份数检查一遍。' },
+    CHANGE_WRONG: { label: '把"用去多少"当成了"找回多少"', advice: '题目问找回（还剩），还要拿总钱数减去用去的，别停在乘积那一步。' },
+    COPY_GIVEN: { label: '把题里已有的那个数当成了答案', advice: '题里给的数对应的是原来的份数（或原来的每份数），条件一变就得重算。' },
+    // ---- 第一单元 近似数反推最大 / 最小（同步试卷里的那类 ★ 拓展题）----
+    MAXMIN_SIDE: { label: '往反方向找了', advice: '求最大：尾数尽量大但不能进位。求最小：要往前一个万借，靠进 1 才得到 35 万。' },
+    BOUND_OVER: { label: '这一位填大了，会进位', advice: '要看的那一位一到 5 就进 1，近似数就不是题目给的那个万数了。' },
+    BOUND_UNDER: { label: '这一位填小了，舍掉后少 1 万', advice: '这一位比 5 小就舍去，前一位不会进 1 —— 求最小的数时不能填得太小。' },
+    COPY_APPROX: { label: '把近似数本身当成了答案', advice: '35 万写作 350000，它只是其中一个可能的数。题目要的是最大（或最小）的那一个。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -517,6 +540,73 @@
     };
   }
 
+  // 族 D-2：估算的最浅一层 —— 两位数 × 一位数，只凑整一个数（39 × 4 ≈ ?）
+  //
+  // 为什么它比 T-0406-A 低一档，而不是"同一件事出个简单的数"：
+  // 巩固档难在**同时管两个因数**的凑整，孩子是在"哪个数看成多少"上就串了，
+  // 不是在乘法上。先只动一个数，把"看成最接近的整十数"这一步单独站住。
+  //
+  // 也正因为如此，这一档**不能**用 HALF_ROUNDED 当错因 ——
+  // 在这儿"只凑整一个数"就是正确做法（一位数没什么可凑的），
+  // 拿它当错误会冤枉人，还会往归因数据里灌进一条假的。
+  function familyEstimateOneDigit(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var aT = pickInt(rng, 2, 8);
+        var aU = ROUND_UNITS[pickInt(rng, 0, ROUND_UNITS.length - 1)];
+        var a = aT * 10 + aU;
+        var aR = aU >= 5 ? (aT + 1) * 10 : aT * 10;
+        var aOther = aU >= 5 ? aT * 10 : (aT + 1) * 10;   // 另一个整十数（看反方向就落到它上面）
+        var b = pickInt(rng, 2, 4);
+        var estimate = aR * b;
+        var exact = a * b;
+
+        var cands = [aR, aR - 10, aR + 10].filter(function (v) { return v > 0; });
+
+        return {
+          stem: '估算 ' + a + ' × ' + b + ' 大约是多少。',
+          steps: [
+            {
+              id: 'round',
+              tier: 1,
+              type: 'choice',
+              prompt: '把 ' + a + ' 看成最接近的整十数，是多少？',
+              answer: aR,
+              options: shuffle(rng, cands).map(function (v) {
+                return { value: v, label: String(v), tag: v === aR ? null : 'ROUND_WRONG' };
+              }),
+              hint: '看个位：' + aU + '，' + (aU >= 5 ? '比 5 大，往上看一个十。' : '比 5 小，往下看，十位不变。'),
+              teach: [a + ' 最接近的整十数是 ' + aR]
+            },
+            {
+              id: 'final',
+              tier: 0,
+              type: 'number',
+              prompt: a + ' × ' + b + ' ≈ ?（填估算结果）',
+              answer: estimate,
+              distractors: dedupeDistractors(estimate, [
+                { value: exact, tag: 'EXACT_NOT_ESTIMATE' },
+                { value: aOther * b, tag: 'ROUND_WRONG' }
+              ]),
+              hint: '把 ' + a + ' 换成 ' + aR + ' 再乘：' + aR + ' × ' + b + '，这一步是口算。',
+              teach: [
+                '① ' + a + ' ≈ ' + aR + '（' + b + ' 本来就是一位数，不用再看）',
+                '② ' + aR + ' × ' + b + ' = ' + estimate,
+                '③ 所以 ' + a + ' × ' + b + ' 大约等于 ' + estimate
+              ]
+            }
+          ],
+          facts: {
+            kind: 'estimate-one-digit', isEstimate: true,
+            a: a, b: b, aR: aR, answer: estimate
+          }
+        };
+      }
+    };
+  }
+
   // 族 E：改写（380000 = 38 万 ／ 1200000000 = 12 亿）
   //
   // 干扰项只留两条真正会犯的错：
@@ -616,7 +706,7 @@
         var nextName = spec.nextName;
 
         var w = pickInt(rng, spec.wMin, spec.wMax);
-        var d = pickInt(rng, 0, 9);                  // 关键位上的数字
+        var d = spec.digit ? spec.digit(rng) : pickInt(rng, 0, 9);   // 关键位上的数字
         // 尾数不能为 0，否则"省略尾数"没东西可省，这题就是废题
         var rest = pickInt(rng, 1, lookPow - 1);
         var n = w * unitPow + d * lookPow + rest;
@@ -920,8 +1010,14 @@
       shape: spec.shape,
       method: spec.method,
       gen: function (rng) {
-        var i = pickInt(rng, 0, 1);          // 大的那个：0 周角 / 1 平角
-        var j = pickInt(rng, i + 1, 2);      // 小的那个
+        var i, j;
+        if (spec.big !== undefined) {
+          // 基础档：指定只考某一对（见 T-0204-F），不让周角进来搅
+          i = spec.big; j = spec.small;
+        } else {
+          i = pickInt(rng, 0, 1);          // 大的那个：0 周角 / 1 平角
+          j = pickInt(rng, i + 1, 2);      // 小的那个
+        }
         var big = ANGLE_UNITS[i], small = ANGLE_UNITS[j];
         var answer = big.deg / small.deg;
 
@@ -1327,6 +1423,70 @@
             }
           ],
           facts: { kind: 'middle-zero', a: a, b: b, expect: answer }
+        };
+      }
+    };
+  }
+
+  // 族 I-2：因数中间有 0 —— 最浅一层（302 × 3）
+  //
+  // 原来这个知识点最浅的一道就要 306 × 13：中间的 0 要乘两遍（个位一遍、十位一遍），
+  // 还要处理两部分相加，等于把"0 也要乘"和"两位数乘法怎么拆"两件事一起压上。
+  // 教案在这一课写的是"0×8=0，必须算，不能漏掉"—— 那是单独的一件事，
+  // 所以先给一位数乘数，让"十位上是 0"这一问孤零零地站在那里。
+  //
+  // 乘数刻意只取 2、3，个位的积也不满十（个位数取 1~3）：
+  // 一有进位，"0 乘几得几"就会和进位混在一起，那就不再是这一档要练的东西了。
+  function familyMiddleZeroEasy(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var b = pickInt(rng, 2, 3);
+        var h = pickInt(rng, 2, Math.floor(9 / b));   // 百位 × 乘数不满十
+        var u = pickInt(rng, 1, Math.floor(9 / b));   // 个位 × 乘数也不满十
+        var a = h * 100 + u;               // 十位固定是 0，如 302
+        var answer = a * b;
+        var skipZero = (h * 10 + u) * b;   // 跳过十位：302 → 32
+        var zeroAsA = answer + b * 10;     // 十位写成了 b（以为 0 × 3 得 3）
+
+        return {
+          stem: a + ' × ' + b + ' = ?',
+          steps: [
+            {
+              id: 'zero',
+              tier: 1,
+              type: 'choice',
+              prompt: a + ' 的十位上是 0。算 ' + a + ' × ' + b + ' 的时候，这一位怎么办？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '照样要乘：0 × ' + b + ' = 0，积的十位写 0', tag: null },
+                { value: 2, label: '不用乘，直接把百位上的数落下来', tag: 'MID_ZERO_SKIP' },
+                { value: 3, label: '0 × ' + b + ' 得 ' + b + '，十位写 ' + b, tag: 'ZERO_TIMES_ANY' }
+              ]),
+              hint: '0 和任何数相乘都得 0。这一位即使得 0，也占着一个位置。',
+              teach: ['0 × ' + b + ' = 0，' + a + ' 的十位乘完还是 0，这个 0 占着数位']
+            },
+            {
+              id: 'final',
+              tier: 0,
+              type: 'number',
+              prompt: a + ' × ' + b + ' = ?',
+              answer: answer,
+              distractors: dedupeDistractors(answer, [
+                { value: skipZero, tag: 'MID_ZERO_SKIP' },
+                { value: zeroAsA, tag: 'ZERO_TIMES_ANY' }
+              ]),
+              hint: '从个位起一位一位地乘：' + u + ' × ' + b + '，再 0 × ' + b + '，再 ' + h + ' × ' + b + '。',
+              teach: [
+                '① 个位：' + u + ' × ' + b + ' = ' + (u * b),
+                '② 十位：0 × ' + b + ' = 0',
+                '③ 百位：' + h + ' × ' + b + ' = ' + (h * b),
+                '④ ' + a + ' × ' + b + ' = ' + answer + '（十位的 0 要占着，不能不写）'
+              ]
+            }
+          ],
+          facts: { kind: 'middle-zero-easy', a: a, b: b, expect: answer }
         };
       }
     };
@@ -1828,6 +1988,497 @@
     };
   }
 
+  /* ==================== 第四单元 探索规律：积的变化规律（教材 P52）==================== */
+  // 教案（《积的变化规律》第1课时）把这一课拆成两条：
+  //   ① 两个乘数同时乘（或除以）同一个不為 0 的数，积要乘（或除以）这个数两回；
+  //   ② 一个乘数乘几、另一个乘数除以相同的数，积不变。
+  // 教材的例1 是填表：从左往右看是"都乘"，从右往左看是"都除以" —— 同一个表两种读法，
+  // 所以"都除以"单独做成挑战档，而不是把它当成"都乘"的镜像顺手带过。
+  //
+  // 这个族最关键的一点：答案由程序**直接乘出来**（askA × askB），
+  // 而题目要求孩子用规律**推**出来。两者必须相等 —— 这就是规律有没有被用对的检验，
+  // 测试里靠 facts.expect 守这条（见 tests/engine.test.js 第 1 条）。
+  var SCALE_CODE = { SAME: 1, MUL_K: 2, MUL_KK: 3, DIV_K: 4, DIV_KK: 5 };
+
+  function scaleLabel(k, code) {
+    if (code === SCALE_CODE.SAME) return '不变';
+    if (code === SCALE_CODE.MUL_K) return '乘 ' + k;
+    if (code === SCALE_CODE.MUL_KK) return '乘 ' + (k * k);
+    if (code === SCALE_CODE.DIV_K) return '除以 ' + k;
+    return '除以 ' + (k * k);
+  }
+
+  function familyProductRule(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var mode = spec.mode;
+        var k = spec.k(rng);
+        var a0 = spec.aCore(rng);
+        var b0 = spec.bCore(rng);
+
+        var refA, refB, askA, askB, right, others, asked;
+        if (mode === 'single') {                  // 一个乘数不变，另一个乘 k（旧知，基础档）
+          refA = a0; refB = b0; askA = a0 * k; askB = b0;
+          right = SCALE_CODE.MUL_K;
+          others = [[SCALE_CODE.MUL_KK, 'PATTERN_OVER'], [SCALE_CODE.SAME, 'PATTERN_BASE']];
+          asked = '一个乘数乘 ' + k + '，另一个乘数不变，积会怎么变？';
+        } else if (mode === 'both-up') {           // 例1 的表：从左往右
+          refA = a0; refB = b0; askA = a0 * k; askB = b0 * k;
+          right = SCALE_CODE.MUL_KK;
+          others = [[SCALE_CODE.MUL_K, 'PATTERN_LINEAR'], [SCALE_CODE.SAME, 'PATTERN_BASE']];
+          asked = '两个乘数都乘 ' + k + '，积会怎么变？';
+        } else if (mode === 'both-down') {         // 同一张表：从右往左
+          refA = a0 * k; refB = b0 * k; askA = a0; askB = b0;
+          right = SCALE_CODE.DIV_KK;
+          others = [[SCALE_CODE.DIV_K, 'PATTERN_LINEAR'], [SCALE_CODE.SAME, 'PATTERN_BASE']];
+          asked = '两个乘数都除以 ' + k + '，积会怎么变？';
+        } else {                                   // 课堂活动：一乘一除，积不变
+          refA = a0; refB = b0 * k; askA = a0 * k; askB = b0;
+          right = SCALE_CODE.SAME;
+          others = [[SCALE_CODE.MUL_K, 'PATTERN_LINEAR'], [SCALE_CODE.DIV_K, 'PATTERN_DIV']];
+          asked = '一个乘数乘 ' + k + '，另一个乘数除以 ' + k + '，积会怎么变？';
+        }
+
+        var ref = refA * refB;
+        var answer = askA * askB;
+
+        // 「积怎么变」这一步：错因落在"跟着变几回"上，和算错数分开。
+        var scaleStep = {
+          id: 'scale',
+          tier: 1,
+          type: 'choice',
+          prompt: asked,
+          answer: right,
+          options: shuffle(rng, [{ value: right, label: scaleLabel(k, right), tag: null }].concat(
+            others.map(function (o) {
+              return { value: o[0], label: scaleLabel(k, o[0]), tag: o[1] };
+            }))),
+          hint: '一个乘数变一回，积就跟着变一回；两个都变，积要变两回。',
+          teach: [asked + ' —— ' + scaleLabel(k, right)]
+        };
+
+        // 基准那道乘法（tier 2）：规律的起点。答错它，后面推得再对也没用。
+        var baseStep = {
+          id: 'base',
+          tier: 2,
+          type: 'number',
+          prompt: '先算原来那道：' + refA + ' × ' + refB + ' = ?',
+          answer: ref,
+          distractors: dedupeDistractors(ref, [
+            { value: (refA + 1) * refB, tag: 'BASE_PROD' },
+            { value: refA * (refB + 1), tag: 'BASE_PROD' }
+          ]),
+          hint: '这一道是起点，老老实实算出来。',
+          teach: [refA + ' × ' + refB + ' = ' + ref]
+        };
+
+        var wrongs = [{ value: ref, tag: 'PATTERN_BASE' }];
+        if (mode === 'single') wrongs.push({ value: ref * k * k, tag: 'PATTERN_OVER' });
+        if (mode === 'both-up') {
+          wrongs.push({ value: ref * k, tag: 'PATTERN_LINEAR' });
+          if (k * k !== k + k) wrongs.push({ value: ref * (k + k), tag: 'PATTERN_ADD' });
+        }
+        if (mode === 'both-down') {
+          wrongs.push({ value: ref / k, tag: 'PATTERN_LINEAR' });
+          wrongs.push({ value: ref * k * k, tag: 'PATTERN_DIV' });
+        }
+        if (mode === 'invariant') {
+          wrongs.push({ value: ref * k, tag: 'PATTERN_LINEAR' });
+          wrongs.push({ value: ref / k, tag: 'PATTERN_DIV' });
+        }
+
+        var ruleLines = [];
+        if (mode === 'single') ruleLines.push('一个乘数乘 ' + k + '，另一个不变 → 积乘 ' + k);
+        if (mode === 'both-up') ruleLines.push('两个乘数都乘 ' + k + ' → 积乘 ' + k + '×' + k + ' = ' + (k * k));
+        if (mode === 'both-down') ruleLines.push('两个乘数都除以 ' + k + ' → 积除以 ' + k + '，再除以 ' + k);
+        if (mode === 'invariant') ruleLines.push('一个乘 ' + k + '、一个除以 ' + k + ' → 一涨一消，积不变');
+
+        var finalStep = {
+          id: 'final',
+          tier: 0,
+          type: 'number',
+          prompt: askA + ' × ' + askB + ' = ?',
+          answer: answer,
+          distractors: dedupeDistractors(answer, wrongs),
+          hint: '不用重新竖式：看乘数各自变了几回，让 ' + ref + ' 跟着变。',
+          teach: [refA + ' × ' + refB + ' = ' + ref].concat(ruleLines)
+            .concat([askA + ' × ' + askB + ' = ' + answer])
+        };
+
+        return {
+          stem: '找规律，不用重新竖式：' + refA + ' × ' + refB + ' = ' + ref +
+            '，那么 ' + askA + ' × ' + askB + ' = ?',
+          steps: [baseStep, scaleStep, finalStep],
+          facts: {
+            kind: 'product-rule', mode: mode, k: k,
+            refA: refA, refB: refB, ref: ref, askA: askA, askB: askB,
+            expect: answer
+          }
+        };
+      }
+    };
+  }
+
+  /* ==================== 第五单元 归一 / 归总（教材 P64 解决问题）==================== */
+  // 教案的写法是"先求单一量"和"先求倍数"两种思路，重点在**中间那一步必须先求出来**：
+  // 归一先求一份，归总先求总数。孩子最典型的错法就是跳过中间那步，
+  // 直接拿题里现成的两个数相乘 —— 所以这个族里 NO_UNIT_STEP / NO_TOTAL_STEP
+  // 是第一优先的探针，比"算错了"有用得多。
+  function familyUnitRate(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var mode = spec.mode;
+
+        /* ---------- 归一：已知"几份一共多少"，求"另几份多少" ---------- */
+        if (mode === 'unit') {
+          var given = spec.given(rng);              // 已知的份数
+          var per = spec.per(rng);                  // 每份的价钱（保证整除）
+          var want = pickInt(rng, given + 1, given + 4);
+          var total = per * given;
+          var answer = per * want;
+
+          return {
+            stem: '买 ' + given + ' 个同样的文具盒要 ' + total + ' 元，买 ' + want + ' 个要多少元？',
+            steps: [
+              {
+                id: 'unit', tier: 1, type: 'number',
+                prompt: '先求一个文具盒多少元：' + total + ' ÷ ' + given + ' = ?',
+                answer: per,
+                distractors: dedupeDistractors(per, [
+                  { value: total * given, tag: 'DIV_MUL_REVERSE' },
+                  { value: total - given, tag: 'QUANTITY_WRONG' },
+                  { value: per + 1, tag: 'UNIT_RATE_CALC' }
+                ]),
+                hint: '平均分用除法：总钱数 ÷ 个数。',
+                teach: [total + ' ÷ ' + given + ' = ' + per + '（元）—— 这是一个文具盒的价钱']
+              },
+              {
+                id: 'relation', tier: 2, type: 'choice',
+                prompt: '求出"一个多少元"之后，下一步该怎么办？',
+                answer: 1,
+                options: shuffle(rng, [
+                  { value: 1, label: '再乘要买的个数', tag: null },
+                  { value: 2, label: '加上要买的个数', tag: 'QUANTITY_WRONG' },
+                  { value: 3, label: '直接用原来的总钱数就行', tag: 'COPY_GIVEN' }
+                ]),
+                hint: '一份的价钱有了，要几份就乘几。',
+                teach: ['一份 × 份数 = 总数，所以 ' + per + ' × ' + want]
+              },
+              {
+                id: 'final', tier: 0, type: 'number',
+                prompt: '买 ' + want + ' 个要多少元？',
+                answer: answer,
+                distractors: dedupeDistractors(answer, [
+                  { value: total * want, tag: 'NO_UNIT_STEP' },
+                  { value: total, tag: 'COPY_GIVEN' },
+                  { value: (per + 1) * want, tag: 'UNIT_RATE_CALC' }
+                ]),
+                hint: '先算出一个多少元，再乘 ' + want + '。',
+                teach: [total + ' ÷ ' + given + ' = ' + per + '（元）', per + ' × ' + want + ' = ' + answer + '（元）']
+              }
+            ],
+            facts: {
+              kind: 'unit-rate', mode: 'unit', per: per, given: given,
+              total: total, want: want, expect: answer
+            }
+          };
+        }
+
+        /* ---------- 归总：总数不变，每份数变了，份数跟着变 ---------- */
+        if (mode === 'total') {
+          // 构造上就保证能整除：每间 q×dA 块、铺 rooms 间，总数 = q×dA×rooms；
+          // 新的每间块数取 q×dC（dC 是 dA×rooms 的约数、且比 dA 小），
+          // 于是"可以铺几间" = dA×rooms ÷ dC 必是整数，不用事后挑题。
+          var q = spec.q(rng);
+          var dA = pickInt(rng, 2, 4);
+          var rooms = spec.rooms(rng);
+          var each = q * dA;
+          var sum = each * rooms;
+          var base = dA * rooms;
+          var cands = [];
+          for (var d = 1; d < dA; d++) {
+            if (base % d === 0) cands.push(d);
+          }
+          var dC = cands[Math.floor(rng() * cands.length)];
+          var news = q * dC;
+          var answerT = sum / news;
+
+          return {
+            stem: '一间教室铺 ' + each + ' 块地砖，' + rooms + ' 间一共要多少块？如果一间只铺 ' +
+              news + ' 块，这些砖可以铺几间？',
+            steps: [
+              {
+                id: 'total', tier: 1, type: 'number',
+                prompt: '先求一共有多少块砖：' + each + ' × ' + rooms + ' = ?',
+                answer: sum,
+                distractors: dedupeDistractors(sum, [
+                  { value: each + rooms, tag: 'QUANTITY_WRONG' },
+                  { value: sum + each, tag: 'CORE_CALC' }
+                ]),
+                hint: '每间铺的块数 × 间数 = 一共的块数。',
+                teach: [each + ' × ' + rooms + ' = ' + sum + '（块）']
+              },
+              {
+                id: 'relation', tier: 2, type: 'choice',
+                prompt: '砖的总数变了没有？',
+                answer: 1,
+                options: shuffle(rng, [
+                  { value: 1, label: '没变，还是这些砖，只是每间铺得少了', tag: null },
+                  { value: 2, label: '变了，每间铺几块就要重新算总数', tag: 'NO_TOTAL_STEP' },
+                  { value: 3, label: '变了，间数一变总数就变', tag: 'NO_TOTAL_STEP' }
+                ]),
+                hint: '归总的题，先抓那个不变的总量。',
+                teach: ['砖还是那 ' + sum + ' 块 —— 总数不变，所以能铺的间数 = ' + sum + ' ÷ ' + news]
+              },
+              {
+                id: 'final', tier: 0, type: 'number',
+                prompt: '这些砖可以铺几间？',
+                answer: answerT,
+                distractors: dedupeDistractors(answerT, [
+                  { value: rooms * news, tag: 'NO_TOTAL_STEP' },
+                  { value: sum * news, tag: 'DIV_MUL_REVERSE' },
+                  { value: sum - news, tag: 'QUANTITY_WRONG' },
+                  { value: rooms, tag: 'COPY_GIVEN' }
+                ]),
+                hint: '拿一共的块数除以每间新的块数。',
+                teach: [each + ' × ' + rooms + ' = ' + sum + '（块）', sum + ' ÷ ' + news + ' = ' + answerT + '（间）']
+              }
+            ],
+            facts: {
+              kind: 'unit-rate', mode: 'total', each: each, rooms: rooms,
+              total: sum, alt: news, expect: answerT
+            }
+          };
+        }
+
+        /* ---------- 归一 + 付钱找零（两步半，挑战档）---------- */
+        var g2 = spec.given(rng);
+        var p2 = spec.per(rng);
+        var t2 = p2 * g2;
+        var w2 = pickInt(rng, g2 + 1, g2 + 3);
+        var cost = p2 * w2;
+        var pay = spec.pay(cost, p2);
+        var answerC = pay - cost;
+
+        return {
+          stem: '买 ' + g2 + ' 个同样的书包要 ' + t2 + ' 元。王老师买 ' + w2 + ' 个，' +
+            '付了 ' + pay + ' 元，应找回多少元？',
+          steps: [
+            {
+              id: 'unit', tier: 1, type: 'number',
+              prompt: '先求一个书包多少元：' + t2 + ' ÷ ' + g2 + ' = ?',
+              answer: p2,
+              distractors: dedupeDistractors(p2, [
+                { value: t2 * g2, tag: 'DIV_MUL_REVERSE' },
+                { value: p2 + 1, tag: 'UNIT_RATE_CALC' }
+              ]),
+              hint: '平均分用除法。',
+              teach: [t2 + ' ÷ ' + g2 + ' = ' + p2 + '（元）']
+            },
+            {
+              id: 'cost', tier: 1, type: 'number',
+              prompt: '再求 ' + w2 + ' 个书包多少元：' + p2 + ' × ' + w2 + ' = ?',
+              answer: cost,
+              distractors: dedupeDistractors(cost, [
+                { value: t2, tag: 'COPY_GIVEN' },
+                { value: cost + p2, tag: 'CORE_CALC' }
+              ]),
+              hint: '一个的价钱 × 个数。',
+              teach: [p2 + ' × ' + w2 + ' = ' + cost + '（元）—— 这是要付的钱']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '应找回多少元？',
+              answer: answerC,
+              distractors: dedupeDistractors(answerC, [
+                { value: cost, tag: 'CHANGE_WRONG' },
+                { value: pay - t2, tag: 'NO_UNIT_STEP' },
+                { value: pay, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '找回的钱 = 付的钱 − 要付的钱，别停在乘积那一步。',
+              teach: [p2 + ' × ' + w2 + ' = ' + cost + '（元）', pay + ' − ' + cost + ' = ' + answerC + '（元）']
+            }
+          ],
+          facts: {
+            kind: 'unit-rate', mode: 'change', per: p2, given: g2,
+            total: t2, want: w2, cost: cost, pay: pay, expect: answerC
+          }
+        };
+      }
+    };
+  }
+
+  /* ==================== 第一单元 近似数反推最大 / 最小（挑战档）==================== */
+  // 同步试卷里那类 ★ 题："一个数省略万位后面的尾数后约是 35 万，这个数最大是多少？"
+  // 教案《近似数》一课的难点就在这里 —— 正向四舍五入大家都会，倒过来就要想清楚：
+  //   最大 → 舍去得到的，尾数尽可能大但不能进位（千位只能到 4）
+  //   最小 → 往前一个万借，靠进 1 才得到 35 万（千位最小是 5）
+  // 这两条路完全不同，所以求最大 / 求最小各做一个模板，错因也分开探测。
+  function familyRoundExtreme(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var W = spec.wMin + Math.floor(rng() * (spec.wMax - spec.wMin + 1));
+        var UP = 10000, LOOK = 1000;
+        var askMax = spec.ask === 'max';
+        var answer = askMax ? W * UP + 4999 : (W - 1) * UP + 5000;
+        var other = askMax ? (W - 1) * UP + 5000 : W * UP + 4999;
+
+        var digitStep = {
+          id: 'digit',
+          tier: 1,
+          type: 'choice',
+          prompt: askMax
+            ? '要这个数尽可能大，千位上最大能填几？'
+            : '要这个数尽可能小，千位上最小能填几？',
+          answer: askMax ? 4 : 5,
+          options: shuffle(rng, (askMax
+            ? [[4, null], [9, 'BOUND_OVER'], [3, 'BOUND_UNDER']]
+            : [[5, null], [4, 'BOUND_UNDER'], [0, 'MAXMIN_SIDE']])
+            .map(function (o) {
+              return { value: o[0], label: '填 ' + o[0], tag: o[1] };
+            })),
+          hint: askMax
+            ? '再大一点就要往前进位了，近似数就不再是题目给的那个万数。'
+            : '求最小的数要往前一个万借 —— 这一位得填到刚好能往前进 1。',
+          teach: askMax
+            ? ['求最大：千位填 ' + 4 + '（再大就要进位），后面每一位都填最大的数',
+              '所以最大是 ' + answer]
+            : ['求最小：要往前一个万借，靠千位进 1 才凑成 ' + W + ' 万',
+              '所以千位最小填 5，后面每一位都填 0，最小是 ' + answer]
+        };
+
+        var finalStep = {
+          id: 'final',
+          tier: 0,
+          type: 'number',
+          prompt: '这个数' + (askMax ? '最大' : '最小') + '是多少？（写完整的数，不要带"万"）',
+          answer: answer,
+          distractors: dedupeDistractors(answer, [
+            { value: other, tag: 'MAXMIN_SIDE' },
+            { value: W * UP, tag: 'COPY_APPROX' },
+            askMax
+              ? { value: W * UP + 5000, tag: 'BOUND_OVER' }
+              : { value: (W - 1) * UP + 4999, tag: 'BOUND_UNDER' }
+          ]),
+          hint: '先定千位能填几，再把后面四位填到最大（或最小）。',
+          teach: digitStep.teach.concat([
+            W + ' 万写作 ' + (W * UP) + '，它只是其中一个可能的数，不是答案'
+          ])
+        };
+
+        return {
+          stem: '一个数省略万位后面的尾数后约是 ' + W + ' 万，这个数' +
+            (askMax ? '最大' : '最小') + '是多少？',
+          steps: [digitStep, finalStep],
+          facts: {
+            kind: 'round-extreme', ask: spec.ask, w: W,
+            approx: W * UP, expect: answer
+          }
+        };
+      }
+    };
+  }
+
+  // 族 F-2：改写 vs 求近似数 —— 符号辨析（380000 = 38 万 ／ 428000 ≈ 43 万）
+  //
+  // 教案的教后反思点名的就是这一条："混淆改写（=）与求近似数（≈）"。
+  // 两道题孩子都会算，符号却乱用 —— 因为他不确定"约等于"到底算不算一个数。
+  // 原来的模板里改写归改写、近似归近似，各练各的，**没有一道题把两个放在一起比过**，
+  // 所以这个错因一直没地方被探测到。这一族就是补那个探测点的。
+  //
+  // 设计上有两处是刻意的，改之前请先读：
+  //   1. 不进位（尾数舍掉）的近似数会算出和改写**一样的万数**（384900 ≈ 38 万），
+  //      选项文本就分不出对错了。所以关键位固定取 5~9，让近似值必然往前进 1。
+  //   2. 「380000 ≈ 38 万」这种写法，严格说起来数值并没错，孩子可能来抬杠。
+  //      所以两个错误选项里都另外埋了一处**数值上就站不住**的半句
+  //      （把 428000 写成 = 43 万），保证这题只有一种读法、只有一个能选的答案。
+  function familyEqApprox(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var w1 = pickInt(rng, 11, 98);
+        var A = w1 * 10000;                        // 整万数：改写得干净，两边相等
+        var w2 = pickInt(rng, 11, 98);
+        var d = pickInt(rng, 5, 9);                // 必然往前进 1（见上面第 1 条）
+        var rest = pickInt(rng, 1, 999);
+        var B = w2 * 10000 + d * 1000 + rest;      // 尾数省掉之后就不是原数了
+        var Bn = w2 + 1;
+
+        var SENT_OK = 1, SENT_SWAP = 2, SENT_ALL_EQ = 3;
+        var sentences = {};
+        sentences[SENT_OK] = A + ' = ' + w1 + ' 万，' + B + ' ≈ ' + Bn + ' 万';
+        sentences[SENT_SWAP] = A + ' ≈ ' + w1 + ' 万，' + B + ' = ' + Bn + ' 万';
+        sentences[SENT_ALL_EQ] = A + ' = ' + w1 + ' 万，' + B + ' = ' + Bn + ' 万';
+
+        return {
+          stem: A + ' 改写成用「万」作单位的数，' + B + ' 省略万位后面的尾数求近似数。' +
+            '下面哪一句话把两个符号都用对了？',
+          steps: [
+            {
+              id: 'near',
+              tier: 1,
+              type: 'number',
+              prompt: B + ' 省略万位后面的尾数，约是多少万？',
+              answer: Bn,
+              distractors: dedupeDistractors(Bn, [
+                { value: w2, tag: 'ROUND_DIR' },
+                { value: B, tag: 'NOT_IN_UNIT' }
+              ]),
+              hint: '看千位上是 ' + d + '，' + (d >= 5 ? '5 及以上要往前进 1。' : '比 5 小要舍去。'),
+              teach: ['千位上是 ' + d + '，往前进 1，所以 ' + B + ' ≈ ' + Bn + ' 万']
+            },
+            {
+              id: 'rw',
+              tier: 2,
+              type: 'number',
+              prompt: A + ' 改写成用「万」作单位的数，是多少万？',
+              answer: w1,
+              distractors: dedupeDistractors(w1, [
+                { value: w1 * 10, tag: 'UNIT_ZERO_FEW' },
+                { value: A, tag: 'NOT_REWRITTEN' }
+              ]),
+              hint: '1 万 = 10000，去掉末尾的 4 个 0。',
+              teach: [A + ' 去掉末尾 4 个 0 是 ' + w1 + '，写成 ' + w1 + ' 万']
+            },
+            {
+              id: 'final',
+              tier: 0,
+              type: 'choice',
+              prompt: '哪一句话两个符号都用对了？',
+              answer: SENT_OK,
+              options: shuffle(rng, [
+                { value: SENT_OK, tag: null },
+                // 两个符号都用反：改写不敢写等号，近似数反倒写了等号
+                { value: SENT_SWAP, tag: 'REWRITE_VS_APPROX' },
+                // 只知道"省略尾数"，不知道省完就不等了
+                { value: SENT_ALL_EQ, tag: 'REAL_EQ_MIX' }
+              ]).map(function (o) {
+                return { value: o.value, label: sentences[o.value], tag: o.tag };
+              }),
+              hint: '两个数各自比一比：改完之后还是不是原来那个数。还是同一个数才写 "="。',
+              teach: [
+                '① ' + A + ' 末尾正好有 4 个 0，去掉之后 ' + w1 + ' 万 = ' + A + '，两边是同一个数，写 "="',
+                '② ' + B + ' 的尾数被省掉了，' + Bn + ' 万 = ' + (Bn * 10000) + '，跟 ' + B + ' 并不是同一个数，只能写 "≈"',
+                '③ 所以 ' + sentences[SENT_OK]
+              ]
+            }
+          ],
+          facts: {
+            kind: 'eq-approx', a: A, b: B, w1: w1, w2: w2, lookDigit: d,
+            approx: Bn, expect: SENT_OK
+          }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -2120,8 +2771,10 @@
     },
 
     // ---- 05-02 第五单元 速度 × 时间 = 路程 ----
+    // 难度原来是 0.45，正好卡在巩固档的门口 —— 分级上线后这个知识点就"没有基础题"了。
+    // 它本来就是最直白的一种问法（速度和时间都给好了，直接乘），和 T-0501-A 同档。
     {
-      family: familySpeedTime, id: 'T-0502-A', kp: 'M4A-05-02', difficulty: 0.45,
+      family: familySpeedTime, id: 'T-0502-A', kp: 'M4A-05-02', difficulty: 0.40,
       shape: '已知速度和时间求路程', method: 'M-QUANTITY',
       ask: 'dist',
       speed: function (rng) { return pickInt(rng, 30, 90); },
@@ -2230,6 +2883,135 @@
       shape: '读条形图：一共多少个', method: 'M-READ-CHART',
       ask: 'sum', itemCount: 4, cellsMin: 1, cellsMax: 8,
       unitPerCell: function (rng) { return pickInt(rng, 2, 5); }
+    },
+
+    /* ------------------------------------------------------------------
+       下面是这一轮按教案补的三块内容。难度值不是随手定的，是照着
+       Knowledge.TIERS 的档位反着给的：
+         ≤ 0.42 基础（人人都能出到）/ 0.42~0.56 巩固（掌握度 0.45 解锁）/ >0.56 挑战（0.70 解锁）
+       这样"夯实基础"是默认状态，难题要靠练出来才见得到。
+       ------------------------------------------------------------------ */
+
+    // ---- 04-05 积的变化规律（教材 P52 例1 + 课堂活动）----
+    // 基础档先只做"一个乘数变"（三下的旧知），巩固档才上"两个都乘"，
+    // 挑战档给"从右往左看"（都除以）和"一乘一除积不变" —— 教案里这两条正是拉开层次的地方。
+    {
+      family: familyProductRule, id: 'T-0405-A', kp: 'M4A-04-05', difficulty: 0.38,
+      shape: '一个乘数乘几，积跟着乘几', method: 'M-PATTERN-SCALE',
+      mode: 'single',
+      k: function (rng) { return pickInt(rng, 2, 5); },
+      aCore: function (rng) { return pickInt(rng, 2, 9); },
+      bCore: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familyProductRule, id: 'T-0405-B', kp: 'M4A-04-05', difficulty: 0.50,
+      shape: '两个乘数都乘几，积乘几×几', method: 'M-PATTERN-SCALE',
+      mode: 'both-up',
+      k: function (rng) { return pickInt(rng, 2, 3); },
+      aCore: function (rng) { return pickInt(rng, 2, 12); },
+      bCore: function (rng) { return pickInt(rng, 2, 12); }
+    },
+    {
+      family: familyProductRule, id: 'T-0405-C', kp: 'M4A-04-05', difficulty: 0.60,
+      shape: '从右往左看：两个乘数都除以几', method: 'M-PATTERN-SCALE',
+      mode: 'both-down',
+      k: function (rng) { return pickInt(rng, 2, 5); },
+      aCore: function (rng) { return pickInt(rng, 2, 9); },
+      bCore: function (rng) { return pickInt(rng, 2, 9); }
+    },
+    {
+      family: familyProductRule, id: 'T-0405-D', kp: 'M4A-04-05', difficulty: 0.66,
+      shape: '一乘一除，积不变（课堂活动）', method: 'M-PATTERN-SCALE',
+      mode: 'invariant',
+      k: function (rng) { return pickInt(rng, 2, 4); },
+      aCore: function (rng) { return pickInt(rng, 2, 12); },
+      bCore: function (rng) { return pickInt(rng, 2, 12); }
+    },
+
+    // ---- 05-03 归一与归总（教材 P64 解决问题；教案：先求单一量 / 先求总量两种思路）----
+    {
+      family: familyUnitRate, id: 'T-0503-A', kp: 'M4A-05-03', difficulty: 0.40,
+      shape: '归一：先求一个多少元', method: 'M-UNIT-RATE',
+      mode: 'unit',
+      given: function (rng) { return pickInt(rng, 3, 6); },
+      per: function (rng) { return pickInt(rng, 6, 15); }
+    },
+    {
+      family: familyUnitRate, id: 'T-0503-B', kp: 'M4A-05-03', difficulty: 0.52,
+      shape: '归总：总数不变，每份数变了', method: 'M-UNIT-RATE',
+      mode: 'total',
+      q: function (rng) { return pickInt(rng, 8, 18); },
+      rooms: function (rng) { return pickInt(rng, 4, 9); }
+    },
+    {
+      family: familyUnitRate, id: 'T-0503-C', kp: 'M4A-05-03', difficulty: 0.62,
+      shape: '归一之后还要算找回多少钱', method: 'M-UNIT-RATE',
+      mode: 'change',
+      given: function (rng) { return pickInt(rng, 3, 5); },
+      per: function (rng) { return pickInt(rng, 18, 45); },
+      // 付的钱取整到 50 元，比要付的多一点 —— 和真实购物对得上
+      pay: function (cost) { return Math.ceil((cost + 20) / 50) * 50; }
+    },
+
+    // ---- 01-06 近似数反推最大 / 最小（试卷里的 ★ 题，纯挑战档）----
+    {
+      family: familyRoundExtreme, id: 'T-0106-F', kp: 'M4A-01-06', difficulty: 0.60,
+      shape: '约是 35 万，这个数最大是多少', method: 'M-LOOK-NEXT',
+      ask: 'max', wMin: 12, wMax: 60
+    },
+    {
+      family: familyRoundExtreme, id: 'T-0106-G', kp: 'M4A-01-06', difficulty: 0.68,
+      shape: '约是 35 万，这个数最小是多少', method: 'M-LOOK-NEXT',
+      ask: 'min', wMin: 12, wMax: 60
+    },
+
+    /* 下面两条是"每个知识点都得有一道和课本例题一样的基础题"补出来的。
+       分级上线后才暴露出来：这几个知识点原来最浅的一档就在 0.45~0.56，
+       于是掌握度低的孩子一进场，池子里没有一道基础题 —— 门是关着的。
+       （同样原因的第三个修正是把 T-0502-A 从 0.45 降回 0.40，写在那条自己旁边。） */
+    {
+      // 关键位刻意避开 4 和 5：离进位门槛远，第一步先站住"舍/进"这件事本身
+      family: familyRound, id: 'T-0106-E', kp: 'M4A-01-06', difficulty: 0.40,
+      shape: '省略万位后面的尾数（关键位不挨着 5）', method: 'M-LOOK-NEXT',
+      unitName: '万', unitPow: 10000, lookName: '千位', nextName: '百位',
+      wMin: 10, wMax: 99,
+      digit: function (rng) { return [1, 2, 3, 7, 8, 9][pickInt(rng, 0, 5)]; }
+    },
+    {
+      // 就是背进率那一步：1 平方米 = 100 平方分米，先别急着乘多位数
+      family: familyAreaUnit, id: 'T-0604-E', kp: 'M4A-06-04', difficulty: 0.38,
+      shape: '1 平方米 = 多少平方分米', method: 'M-UNIT-100',
+      from: '平方米', to: '平方分米', rate: 100, reverse: false, kMin: 1, kMax: 2
+    },
+
+    /* ------------------------------------------------------------------
+       下面这批补的是上面那条注释里剩下的三个口子（估算 0.45 / 中间有 0 0.56 /
+       角的关系 0.45 —— 那三个知识点当时一进场就没有基础题），
+       外加教案点名的"改写 vs 求近似数"符号辨析。
+
+       前三条都是**降低一档的形态**，不是把原来的题改简单：
+       估算先只凑整一个数，中间有 0 先把乘数退成一位数，角的关系先固定一对不换。
+       ------------------------------------------------------------------ */
+    {
+      family: familyEstimateOneDigit, id: 'T-0406-E', kp: 'M4A-04-06', difficulty: 0.38,
+      shape: '两位数 × 一位数的估算（只凑整一个数）', method: 'M-ESTIMATE'
+    },
+    {
+      family: familyMiddleZeroEasy, id: 'T-0403-C', kp: 'M4A-04-03', difficulty: 0.36,
+      shape: '三位数（中间是 0）× 一位数', method: 'M-EACH-DIGIT'
+    },
+    {
+      // ANGLE_UNITS 的下标：1 平角 / 2 直角。周角先不进来 ——
+      // 360 和 180 挨着，是这一族里最容易误判的一对，留给巩固档。
+      family: familyAngleRelation, id: 'T-0204-F', kp: 'M4A-02-04', difficulty: 0.40,
+      shape: '平角是几个直角（只考这一对）', method: 'M-WHOLE-ANGLE',
+      big: 1, small: 2
+    },
+    {
+      // 教后反思点名的易错：会把"改写"和"求近似数"混着用符号。
+      // 难点不在算（两个结果都在前两问里算过了），在"改完之后还是不是同一个数"。
+      family: familyEqApprox, id: 'T-0106-H', kp: 'M4A-01-06', difficulty: 0.52,
+      shape: '改写还是求近似数（= 与 ≈）', method: 'M-SIGN-CHECK'
     }
   ];
 

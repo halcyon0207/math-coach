@@ -48,7 +48,10 @@
     // 跨设备同步：别的设备上传的统计快照（只在内存里）
     cloudReports: [],
     cloudMsg: '',
-    famInput: ''
+    famInput: '',
+    // 从首页点「跨设备同步」进来时先过口令；过了之后直接去同步页，
+    // 不用家长自己再找一遍。见 onClick 的 'sync' 和 viewSync()。
+    afterUnlock: ''
   };
 
   var el = function (id) { return document.getElementById(id); };
@@ -175,6 +178,9 @@
       '<p class="card-note">看看哪块亮、哪块暗。</p>' +
       '<button class="btn btn-ghost btn-block" data-act="progress">查看掌握度地图</button>' +
       '<button class="btn btn-ghost btn-block" data-act="parent">家长报告（家长 · 需口令）</button>' +
+      // 家庭码以前只藏在报告页最底下，家长翻半天也找不着。
+      // 单独给一个入口，和报告一样要口令（家庭码等于全家的钥匙）。
+      '<button class="btn btn-ghost btn-block" data-act="sync">跨设备同步（家庭码 · 需口令）</button>' +
       '</div>' +
 
       '<p class="footnote">数据只保存在这台设备上，不会上传。</p>';
@@ -556,20 +562,68 @@
   /* ============================== 画笔 ============================== */
   // 笔迹按"点"存，不按图像存：render() 每次都会换掉整块 innerHTML，
   // 画布元素跟着重建，只有存成数据才能重画出来。
+  // 画布的位置每帧只量一次。一次 pointermove 里往往攒着十几个采样点，
+  // 每个点都量一次会反复触发布局重算（低配平板上就是这么卡起来的），
+  // 卡一次浏览器就丢一批采样 —— 孩子画出来的线跟着断。
+  var rectCv = null, rectCache = null, rectAt = 0;
+  function rectOf(cv) {
+    var now = (typeof performance !== 'undefined' && performance.now)
+      ? performance.now() : Date.now();
+    if (rectCv !== cv || !rectCache || now - rectAt > 16) {
+      rectCache = cv.getBoundingClientRect ? cv.getBoundingClientRect() : { left: 0, top: 0 };
+      rectCv = cv;
+      rectAt = now;
+    }
+    return rectCache;
+  }
+
   function posOf(cv, e) {
-    var r = cv.getBoundingClientRect ? cv.getBoundingClientRect() : { left: 0, top: 0 };
+    var r = rectOf(cv);
     return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  // 一次 pointermove 里浏览器可能攒了好几个采样点（电容笔尤其明显）。
+  // 只取最后一个的话，快画时线会变成几段直棱棱的折线 —— 看着就像"连着画会断"。
+  function coalesced(e) {
+    if (typeof e.getCoalescedEvents === 'function') {
+      try {
+        var list = e.getCoalescedEvents();
+        if (list && list.length) return list;
+      } catch (err) { /* 老浏览器：退回这一个点，照常能画 */ }
+    }
+    return [e];
+  }
+
+  // 笔画的线型只在这里设一次：整块重画和"只补一小段"必须一模一样，
+  // 不然一笔线会一段粗一段细。
+  var INK = '#e8590c';
+  var INK_W = 2.5;
+  function inkBegin(ctx) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = INK_W;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
   }
 
   // 每根手指各占一笔。用单个 drawing 布尔值的话，手掌或另一根手指碰一下屏幕，
   // 两根手指的点会被并进同一笔里，画出来就是一条横穿的怪线 ——
   // 孩子越想画干净越乱（9 岁孩子写字时另一只手常按在屏幕上）。
   var liveStrokes = {};   // pointerId -> 该手指那一笔的点数组
+  var livePen = {};       // pointerId -> 这一笔是不是电容笔
+  // 电容笔最近一次落下 / 抬起的时间。笔在画的时候手掌常常就贴在屏上，
+  // 不管的话一道题上会多出一条掌痕。
+  var penAt = 0;
+  function penLive() {
+    for (var k in livePen) { if (livePen[k]) return true; }
+    return false;
+  }
 
   function redrawCanvas(ctx, cv) {
     if (!ctx) return;
     var dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, cv.width / dpr, cv.height / dpr);
+    inkBegin(ctx);
     app.strokes.forEach(function (st) {
       if (!st.length) return;
       ctx.beginPath();
@@ -582,7 +636,18 @@
   }
 
   function endStroke(e) {
-    if (e && e.pointerId != null) delete liveStrokes[e.pointerId];
+    if (!e || e.pointerId == null) return;
+    delete liveStrokes[e.pointerId];
+    delete livePen[e.pointerId];
+    if (e.pointerType === 'pen') penAt = Date.now();
+  }
+
+  // 落笔的那一下：只点了一个点也要看得见（原来靠整块重画，现在是补画一笔）
+  function drawDot(ctx, p) {
+    inkBegin(ctx);
+    ctx.arc(p.x, p.y, INK_W / 2, 0, Math.PI * 2);
+    ctx.fillStyle = INK;
+    ctx.fill();
   }
 
   // 每次 render() 之后都要重新绑定：画布是新的，尺寸也可能变了
@@ -615,10 +680,7 @@
     var ctx = cv.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#e8590c';
+    rectCv = null;   // 尺寸变了，缓存的画布位置也得重量
     redrawCanvas(ctx, cv);
 
     // 事件只绑一次。resize 会再调一回 attachCanvas，那时候节点还是原来那个，
@@ -628,24 +690,45 @@
       cv._mcBound = true;
       cv.addEventListener('pointerdown', function (e) {
         if (!app.penOn) return;
+        // 电容笔正在画、或刚抬起的那一下：这时的触摸基本都是手掌跟手指，
+        // 让它也起一笔的话，孩子画的竖式上就糊一条痕。
+        var isPen = e.pointerType === 'pen';
+        if (isPen) penAt = Date.now();
+        else if (penLive() || (penAt && Date.now() - penAt < 400)) return;
         if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
-        var st = [posOf(cv, e)];
+        var p = posOf(cv, e);
+        var st = [p];
         liveStrokes[e.pointerId] = st;
+        livePen[e.pointerId] = isPen;
         app.strokes.push(st);
-        redrawCanvas(ctx, cv);
+        drawDot(ctx, p);
         e.preventDefault();
       });
       cv.addEventListener('pointermove', function (e) {
         if (!app.penOn) return;
         var st = liveStrokes[e.pointerId];
         if (!st) return;
-        st.push(posOf(cv, e));
-        redrawCanvas(ctx, cv);
+        // 这一批采样点只补画新增的那一小段，不整块重画：
+        // 整块重画在低配平板上每动一下就卡一次，卡的时候浏览器丢采样，
+        // 画出来的线就是一段一段断的。
+        var evts = coalesced(e);
+        var prev = st[st.length - 1];
+        inkBegin(ctx);
+        ctx.moveTo(prev.x, prev.y);
+        for (var i = 0; i < evts.length; i++) {
+          var p = posOf(cv, evts[i]);
+          st.push(p);
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
         e.preventDefault();
       });
+      // 不用 pointerleave：笔尖滑到画布外面就被判成"这一笔完了"，
+      // 孩子接着画就从那儿断开。已经 setPointerCapture 了，
+      // 出了画布 pointermove / pointerup 照样送到这里。
       cv.addEventListener('pointerup', endStroke);
       cv.addEventListener('pointercancel', endStroke);
-      cv.addEventListener('pointerleave', endStroke);
+      cv.addEventListener('lostpointercapture', endStroke);
     }
   }
 
@@ -1078,6 +1161,26 @@
       '<button class="btn btn-soft btn-block" data-act="sync-off">关掉同步</button>' +
       '</div>';
   }
+  // 跨设备同步单独一页。它以前只挂在家长报告页最底下，
+  // 家长得先进报告、再一直滑到最底才看得见 —— 结果就是"哪儿都找不到填家庭码的地方"。
+  function viewSync() {
+    return '' +
+      '<div class="topbar">' +
+      '<button class="btn-icon" data-act="home">←</button>' +
+      '<span class="topbar-title">跨设备同步</span>' +
+      '<span class="topbar-right"></span>' +
+      '</div>' +
+      '<div class="card">' +
+      '<h2 class="card-title">家庭码是干什么的</h2>' +
+      '<p class="card-note">两台设备填同一个家庭码（比如孩子的平板 + 家长的手机），' +
+      '孩子练完一场，家长在自己手机上就能看到进度。' +
+      '语文小教练用的是同一个码 —— 一个码管两门课。</p>' +
+      '<p class="card-note">填一次就够，以后不用再点同步。</p>' +
+      '</div>' +
+      cloudReportsHtml() +
+      syncCardHtml();
+  }
+
   function fmtTime(ts) {
     if (!ts) return '—';
     var d = new Date(ts);
@@ -1327,16 +1430,18 @@
     var root = el('app');
     // 离开家长页就把解锁收回。下次点进来重新要口令 ——
     // 不然家长看完报告切回首页、孩子再点进去就是敞开的。
-    if (app.view !== 'parent') {
+    if (app.view !== 'parent' && app.view !== 'sync') {
       app.parentUnlocked = false;
       app.passInput = '';
       app.passMsg = '';
+      app.afterUnlock = '';
     }
     var html = app.view === 'home' ? viewHome()
       : app.view === 'practice' ? viewPractice()
         : app.view === 'result' ? viewResult()
           : app.view === 'parent' ? viewParent()
-            : viewProgress();
+            : app.view === 'sync' ? viewSync()
+              : viewProgress();
 
     var warn = app.storageWarn
       ? '<div class="card card-warn">' + esc(app.storageWarn) + '</div>'
@@ -1370,6 +1475,19 @@
     if (t.id === 'famInput') app.famInput = t.value;
   }
 
+  // 口令这一关过了：从首页「跨设备同步」点进来的，直奔同步页；
+  // 其余情况照旧进家长报告。
+  function afterGate() {
+    if (app.afterUnlock === 'sync') {
+      app.afterUnlock = '';
+      app.view = 'sync';
+      app.famInput = '';
+      app.passMsg = '';
+      refreshReports();
+    }
+    return render();
+  }
+
   function onClick(e) {
     var t = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!t) return;
@@ -1390,6 +1508,22 @@
       refreshReports();   // 别的设备练得怎么样
       return render();
     }
+    if (act === 'sync') {
+      // 家庭码 = 全家的钥匙（拿到码的人能看到练习情况），所以和报告同一道门。
+      if (!app.parentUnlocked) {
+        app.view = 'parent';
+        app.passInput = '';
+        app.afterUnlock = 'sync';   // 口令一过就直接进同步页，不用家长再找一遍
+        app.passMsg = '跨设备同步也要口令 —— 家庭码就是这家的钥匙，别让孩子拿着。';
+        return render();
+      }
+      app.view = 'sync';
+      app.afterUnlock = '';
+      app.famInput = '';
+      app.cloudMsg = '';
+      refreshReports();
+      return render();
+    }
     if (act === 'set-pass') {
       var pv = (app.passInput || '').trim();
       if (!/^\d{4,6}$/.test(pv)) {
@@ -1402,7 +1536,7 @@
       app.passMsg = '';
       saveState();
       refreshReports();
-      return render();
+      return afterGate();
     }
     if (act === 'unlock') {
       if ((app.passInput || '').trim() !== app.state.passcode) {
@@ -1414,7 +1548,7 @@
       app.passInput = '';
       app.passMsg = '';
       refreshReports();
-      return render();
+      return afterGate();
     }
 
     /* ---- 跨设备同步（只在家长报告页里能点到） ---- */

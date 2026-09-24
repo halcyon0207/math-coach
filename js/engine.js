@@ -181,6 +181,62 @@
   }
 
   /* ============================== 出题 ============================== */
+  // 难度分档的门禁：孩子的掌握度没到，高一档的模板就不进池子。
+  //
+  // 为什么要"解锁"而不是"随机出难题"：这三档是按教材和教案的分层来的
+  // （基础 = 和例题一样；巩固 = 变式、逆向；挑战 = 两步串联、说理），
+  // 目标始终是先把基础夯实。随机撒难题只会让弱的孩子一直错、
+  // 掌握度往下掉，最后连基础题都不敢做。
+  //
+  // 保底规则不能省，而且有两层：
+  //  1. 一个知识点如果只写了高档题（低掌握度时无题可出），退回全池；
+  //  2. 退回来的池子里**必须还有一个非探究题**。
+  // 第 2 条是这轮踩出来的：池子被门禁筛过之后如果只剩探究题，
+  // chooseTemplate 那条"没别的可挑就挑它"的退让会让同一道七步题在一场里出三遍。
+  // 分级是加分项，不该变成卡住出题的坑。
+  function unlockedTemplates(state, kpId) {
+    var all = Templates.forKnowledge(kpId);
+    var m = masteryOf(state, kpId);
+    var open = all.filter(function (t) {
+      return tierAllows(t, m);
+    });
+    if (!open.length) return all;
+    return withPlainWork(open, all);
+  }
+
+  function withPlainWork(open, all) {
+    if (open.some(function (t) { return !t.intro; })) return open;
+    var plain = all.filter(function (t) { return !t.intro; })
+      .sort(function (a, b) { return a.difficulty - b.difficulty; });
+    return plain.length ? [plain[0]].concat(open) : open;
+  }
+
+  // 探究题（intro）不受门禁限制：它不是考核，是"带你把这个知识点第一次搭出来"。
+  // 把它锁在高档门外，等于新知识点第一次露面时反而上不了最好的那道题。
+  function tierAllows(t, m) {
+    if (t.intro) return true;
+    return Knowledge.tierUnlocked(Knowledge.tierOf(t.difficulty), m);
+  }
+
+  // 全池（热身、压轴）用的同一套门禁，按各题自己知识点的掌握度筛。
+  function openPool(pool, state) {
+    var open = pool.filter(function (t) {
+      return tierAllows(t, masteryOf(state, t.kp));
+    });
+    if (!open.length) return pool;
+    return withPlainWork(open, pool);
+  }
+
+  // 这个知识点当前开放到的最高一档（家长报告里用得上）
+  function tierCeiling(state, kpId) {
+    var m = masteryOf(state, kpId);
+    var top = 1;
+    Knowledge.TIERS.forEach(function (t) {
+      if (Knowledge.tierUnlocked(t, m)) top = t.level;
+    });
+    return top;
+  }
+
   function buildQuestion(template, rng, scaffoldLevel) {
     var data = template.gen(rng);
     var steps = data.steps.map(function (s) {
@@ -205,6 +261,10 @@
       shape: template.shape,
       method: template.method,
       difficulty: template.difficulty,
+      // 这题属于哪一档（基础 / 巩固 / 挑战）—— 由 difficulty 对着 Knowledge.TIERS 查出来。
+      // 注意别和步骤上的 tier 混了：那个是"支架档位"（拆几步），这个是"难度档位"。
+      // 名字里带上 diff 就是为了不让两者在代码里长成一个样子。
+      diffTier: Knowledge.tierOf(template.difficulty),
       scaffoldLevel: scaffoldLevel,
       stem: data.stem,
       // 插图（角的图形）。题目数据里带着，界面照着画出来。
@@ -312,10 +372,14 @@
       return statsOf(state, a.id).attempts - statsOf(state, b.id).attempts;
     });
 
-    var warmPool = pool.filter(function (t) { return t.difficulty <= 0.45; });
-    if (!warmPool.length) warmPool = pool;
+    // 先过一遍难度门禁：热身和压轴都只在"已经解锁的题"里挑。
+    // 原来的压轴是"本单元最难的那道"，跟掌握度无关 —— 刚把基础过完的孩子
+    // 每场最后都要撞一次挑战题，错了再记一笔，掌握度反而掉下去。
+    var open = openPool(pool, state);
+    var warmPool = open.filter(function (t) { return t.difficulty <= 0.45; });
+    if (!warmPool.length) warmPool = open;
 
-    var highest = pool.slice().sort(function (a, b) { return b.difficulty - a.difficulty; })[0];
+    var highest = open.slice().sort(function (a, b) { return b.difficulty - a.difficulty; })[0];
 
     var slots = [];
     slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.26 });
@@ -339,7 +403,7 @@
     //    不这么做的话，"薄弱"和"抗遗忘"两档会把名额占满 ——
     //    之前"乘法估算"就是这样一整场都没出现过，孩子根本没机会看到它。
     //
-    //    这里改过两次。第一次是改成"每个先占 1 个，而不是直接给 2 个"：
+    //    这里改过三轮。第一次是改成"每个先占 1 个，而不是直接给 2 个"：
     //    直接给 2 个时，知识点一多，排在最末的一个名额都拿不到，
     //    整场一次都不出现。先保住"露面"，再谈加练，顺序不能反。
     //
@@ -349,12 +413,20 @@
     //    写死封顶会让"连着几场要覆盖所有知识点"变成一件根本做不到的事。
     //    原来的"第二轮加练"取消了：新知识点默认掌握度就偏低，
     //    在下面"薄弱轮流"那一档里自然还会被排到，不需要再单独占位置。
-    var NEW_ROOM = dueKps.length ? Math.max(1, Math.floor(middleTarget / 2)) : middleTarget;
-    var untouched = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; })
-      .slice(0, NEW_ROOM);
+    //
+    //    第三次（这一轮）：知识点从 15 个涨到 17 个之后，"到期就先占掉一半"这个让法
+    //    本身不够用了 —— 算下来总会有一个知识点连着四场一次都不出现。
+    //    改成按**实际需要**让：到期题最多占一半，但只有几个到期就只占几个，
+    //    剩下的名额全给没练过的。复习是在"已经见过"的基础上防遗忘，
+    //    把一个从没露过面的知识点一直挡在门外是本末倒置；
+    //    反过来，真有几个到期时要全部空出来也是错的（那是孩子最该补的时候）。
+    var dueLimit = Math.floor(middleTarget / 2);
+    var untouchedAll = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; });
+    var NEW_ROOM = middleTarget - Math.min(dueLimit, dueKps.length);
+    var untouched = untouchedAll.slice(0, NEW_ROOM);
     untouched.forEach(function (k) {
       if (middle.length < middleTarget) {
-        middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
+        middle.push({ kind: 'weak', pool: unlockedTemplates(state, k.id), kp: k, diff: targetDifficulty(state, k) });
       }
     });
 
@@ -365,15 +437,14 @@
     //    · 到期的比"一直不会的"更值得现在练 —— 会做但快忘的，补一次就回到掌握状态；
     //      而一直不会的那块，本来就在薄弱档里排着，不会因为这次让位就丢掉。
 
-    // 到期的最多占一半名额。
+    // 到期的最多占一半名额（dueLimit 在上面给露面留位置时已经算过，同一个数）。
     // 不设上限的话，隔了几天回来练时所有知识点都到期，会把 middle 全占满 ——
     // 那么"最弱的优先"就等于被取消了。复习不该把薄弱点的练习名额吃掉，
     // 这和下面 keep 那条"跳过最薄弱的知识点"是同一个道理。
-    var dueLimit = Math.floor(middleTarget / 2);
     var dueUsed = 0;
     dueKps.forEach(function (k) {
       if (middle.length < middleTarget && dueUsed < dueLimit) {
-        middle.push({ kind: 'review', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
+        middle.push({ kind: 'review', pool: unlockedTemplates(state, k.id), kp: k, diff: targetDifficulty(state, k) });
         dueUsed++;
       }
     });
@@ -389,7 +460,7 @@
     while (middle.length < middleTarget) {
       var k = order[wi % order.length];
       wi++;
-      middle.push({ kind: 'weak', pool: Templates.forKnowledge(k.id), kp: k, diff: targetDifficulty(state, k) });
+      middle.push({ kind: 'weak', pool: unlockedTemplates(state, k.id), kp: k, diff: targetDifficulty(state, k) });
     }
 
     // 4) 有足够练习记录、且还没到期的知识点，抽两个位置换成本场内的隔题复现。
@@ -408,7 +479,7 @@
         if (middle[idx].kp && middle[idx].kp.id === byWeak[0].id) continue;
         var kk = reviewable[r];
         middle[idx] = {
-          kind: 'keep', pool: Templates.forKnowledge(kk.id), kp: kk,
+          kind: 'keep', pool: unlockedTemplates(state, kk.id), kp: kk,
           diff: targetDifficulty(state, kk) + 0.08
         };
         break;
@@ -416,7 +487,7 @@
     }
 
     slots = slots.concat(middle);
-    slots.push({ kind: 'challenge', pool: pool, kp: Knowledge.byId(highest.kp), diff: highest.difficulty });
+    slots.push({ kind: 'challenge', pool: open, kp: Knowledge.byId(highest.kp), diff: highest.difficulty });
     slots = slots.slice(0, count);
 
     var questions = [];
@@ -656,6 +727,8 @@
     guessRate: guessRate,
     difficultyShift: difficultyShift,
     targetDifficulty: targetDifficulty,
+    unlockedTemplates: unlockedTemplates,
+    tierCeiling: tierCeiling,
     dueKnowledge: dueKnowledge,
     initialMastery: initialMastery,
     updateMastery: updateMastery,

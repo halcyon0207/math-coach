@@ -715,6 +715,80 @@ test('离开家长页后解锁自动失效，回来重新要口令', () => {
   assert.ok(app.html().includes('请输入家长口令'), '回来看报告要重新输口令');
 });
 
+/* ==================== 家庭码入口 ==================== */
+// 家庭码以前只挂在报告页最底下，家长翻半天也找不到 —— 这两条钉住"首页就能进"。
+
+test('首页就能找到家庭码：先过口令，过了直接进同步页', () => {
+  const app = boot();
+  assert.ok(app.html().includes('跨设备同步'), '首页家长区要有家庭码的入口');
+
+  app.click('sync');
+  assert.ok(app.html().includes('先设一个口令'), '家庭码等于全家的钥匙，第一道门是口令');
+
+  app.type('passInput', '2468');
+  app.click('set-pass');
+  const html = app.html();
+  assert.ok(html.includes('家庭码是干什么的'),
+    '口令过了直接落到同步页，不用家长再自己找');
+  assert.ok(html.includes('生成新码'), '这台是第一台时：能生成一个家庭码');
+  assert.ok(html.includes('用这个码'), '另一台已经生成过时：能把码填进来');
+});
+
+test('已经设过口令：再点同步只要输一次，不用重设', () => {
+  const app = boot({ passcode: '2468' });
+  app.click('sync');
+  assert.ok(app.html().includes('请输入家长口令'), '这道门一直有效');
+  assert.ok(!app.html().includes('先设一个口令'), '设过了就不该再要设一次');
+
+  app.type('passInput', '2468');
+  app.click('unlock');
+  assert.ok(app.html().includes('家庭码是干什么的'), '输对了直接落到同步页');
+});
+
+/* ==================== 画笔：电容笔的连续性 ==================== */
+// 电容笔比手指报点密得多，一次 move 里往往攒着好几个采样点。
+// 只收最后一个的话，快画时线会变成几段折线，看着就是"断笔"。
+
+test('一次 move 里攒的采样点全部收下，一个都不丢', () => {
+  const app = boot();
+  app.click('start');
+  app.click('pen');                     // 打开画笔
+
+  const cv = app.canvas;
+  const fire = (type, ev) => (cv._ptr[type] || []).forEach(fn => fn({
+    preventDefault: noop, pointerId: 1, pointerType: 'pen',
+    clientX: ev.x, clientY: ev.y,
+    getCoalescedEvents: () => (ev.all || [{ clientX: ev.x, clientY: ev.y }])
+  }));
+
+  fire('pointerdown', { x: 10, y: 10 });
+  fire('pointermove', { x: 40, y: 40, all: [
+    { clientX: 20, clientY: 20 }, { clientX: 30, clientY: 30 }, { clientX: 40, clientY: 40 }
+  ] });
+  fire('pointerup', { x: 40, y: 40 });
+
+  const strokes = app.sandbox.__mc.app.strokes;
+  assert.strictEqual(strokes.length, 1, '一笔就是一笔');
+  assert.strictEqual(strokes[0].length, 4, '落笔 1 个 + 这一批 3 个采样点，都要收下');
+});
+
+test('电容笔在画的时候，手掌蹭上来不再另起一笔', () => {
+  const app = boot();
+  app.click('start');
+  app.click('pen');
+
+  const cv = app.canvas;
+  const fire = (type, ev) => (cv._ptr[type] || []).forEach(fn => fn(Object.assign(
+    { preventDefault: noop }, ev)));
+
+  fire('pointerdown', { clientX: 10, clientY: 10, pointerId: 1, pointerType: 'pen' });
+  // 笔还压在屏上，手掌贴上来（浏览器报成 touch）：不该跟着起一笔
+  fire('pointerdown', { clientX: 90, clientY: 90, pointerId: 2, pointerType: 'touch' });
+  fire('pointerup', { clientX: 10, clientY: 10, pointerId: 1, pointerType: 'pen' });
+
+  assert.strictEqual(app.sandbox.__mc.app.strokes.length, 1, '掌痕不该被画上去');
+});
+
 test('没解锁时点了清空或导出也不会有任何反应', () => {
   const app = boot({ passcode: '2468', history: [{ ts: 1, isCorrect: true }] });
   app.click('parent');              // 停在输口令页
