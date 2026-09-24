@@ -84,7 +84,7 @@ function boot(persisted) {
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
 
-  ['knowledge', 'templates', 'engine', 'store', 'app'].forEach(name => {
+  ['knowledge', 'templates', 'engine', 'store', 'cloud', 'app'].forEach(name => {
     const file = path.join(ROOT, 'js', name + '.js');
     vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
   });
@@ -154,6 +154,15 @@ function computableAnswer(p) {
   if ((m = p.match(/^(\d+)\s*≈\s*（　）亿$/))) return String(Math.round(Number(m[1]) / 1e8));
   if ((m = p.match(/^(\d+)°\s*\+\s*(\d+)°\s*=\s*\?$/))) return String(Number(m[1]) + Number(m[2]));
   if ((m = p.match(/^(\d+)°\s*−\s*(\d+)°\s*=\s*\?$/))) return String(Number(m[1]) - Number(m[2]));
+
+  // v2.8 新增的四种问法。测试算不出答案时只会填 '1' 判错，
+  // 于是"答对 → 撤一步支架"那条路径在这些题上从来没走过一遍。
+  if ((m = p.match(/^(\d+)\s*×\s*(\d+)\s*≈\s*\?/))) {
+    return String(Math.round(Number(m[1]) / 10) * 10 * Number(m[2]));   // 只凑整两位数那个
+  }
+  if ((m = p.match(/^(\d+)\s*省略万位后面的尾数，约是多少万？$/))) return String(Math.round(Number(m[1]) / 10000));
+  if ((m = p.match(/^(\d+)\s*改写成用「万」作单位的数，是多少万？$/))) return String(Number(m[1]) / 10000);
+  if (/^1 个平角 = （　）个直角$/.test(p)) return '2';
   return null;
 }
 
@@ -211,6 +220,96 @@ test('每道题都解释了"为什么给你出这道题"', () => {
   const app = boot();
   app.click('start');
   assert.ok(app.html().includes('为什么给你出这道题'));
+});
+
+/* -------------------- 难度档位要看得见 -------------------- */
+// 孩子问的是"为什么一直这么简单"。光把闸门做对不够 ——
+// 他得看见这一题是哪一档、以及这一档在练什么，才知道不是系统小看他。
+
+// 把所有知识点的掌握度和练习记录一次性拉满 / 拉到某个值
+function allPracticed(mastery) {
+  const K = require('../js/knowledge.js');
+  const st = {}, masteryMap = {};
+  K.implemented().forEach(k => {
+    masteryMap[k.id] = mastery;
+    st[k.id] = {
+      attempts: 8, corrects: 8, wrongs: 0, lastPracticedAt: Date.now(),
+      level: 2, dueAt: Date.now() + 86400000, streak: 4, wrongStreak: 0
+    };
+  });
+  return { mastery: masteryMap, stats: st };
+}
+
+test('练习页显示这一题的难度档位', () => {
+  const app = boot();
+  app.click('start');
+  const html = app.html();
+  assert.ok(/badge-tier/.test(html), '题目上该有档位徽章');
+  assert.ok(/tier-(BASE|SOLID|CHALLENGE)/.test(html), '徽章要带档位，不能只写个"题"');
+  assert.ok(/>(基础|巩固|挑战)</.test(html), '徽章要写字，不能只有颜色');
+});
+
+test('巩固 / 挑战档会说明这一档在练什么；基础档不啰嗦', () => {
+  const app = boot(allPracticed(0.95));
+  let sawHigh = false;
+  for (let i = 0; i < 10 && !sawHigh; i++) {
+    app.click('home');                  // 上一场可能停在结果页，先回首页再开新的一场
+    app.click('start');
+    let guard = 0;
+    while (guard++ < 40) {
+      const html = app.html();
+      if (/tier-(SOLID|CHALLENGE)/.test(html)) {
+        sawHigh = true;
+        assert.ok(/why-tier/.test(html),
+          '高档题要同时说出这一档在练什么，光贴个"挑战"标签等于吓孩子');
+        assert.ok(/绕个弯|接在一起|说清楚/.test(html), '那一行要说的是这一档在练什么');
+        break;
+      }
+      if (/data-act="next"/.test(html)) { app.click('next'); continue; }
+      if (html.includes(RESULT_MARK)) break;
+      const m = html.match(ACTIVE_STEP);
+      if (!m) break;
+      const opt = html.match(FIRST_OPTION);
+      if (opt) app.click('opt', { 'data-v': opt[1] });
+      else {
+        const v = computableAnswer(m[1]) || '1';
+        v.split('').forEach(ch => app.key(ch));
+      }
+      app.click('submit');
+    }
+  }
+  assert.ok(sawHigh, '掌握度 0.95 连开十场都没见过巩固 / 挑战档 —— 门禁把题锁死了');
+
+  const low = boot(allPracticed(0.05));
+  let sawLowOnly = true;
+  for (let i = 0; i < 6 && sawLowOnly; i++) {
+    low.click('home');
+    low.click('start');
+    // 第一场的第一题是热身题，它必须是基础档
+    if (/tier-(SOLID|CHALLENGE)/.test(low.html())) sawLowOnly = false;
+  }
+  assert.ok(sawLowOnly, '掌握度 0.05 就该只看到基础档');
+});
+
+test('掌握度地图写清楚解锁到哪一档，没练过的不写', () => {
+  const K = require('../js/knowledge.js');
+  const base = allPracticed(0.95);
+  // 留两个知识点"没练过"：一个掌握度 0.5（巩固），一个 0.05（基础）
+  const ids = K.implemented().map(k => k.id);
+  const solidKp = ids[0], baseKp = ids[1], untouchedKp = ids[2];
+  base.mastery[solidKp] = 0.5;
+  base.mastery[baseKp] = 0.05;
+  delete base.stats[untouchedKp];
+  base.mastery[untouchedKp] = 0.3;          // 默认先验，不该被当成进度
+
+  const app = boot(base);
+  app.click('progress');
+  const html = app.html();
+
+  assert.ok(/已解锁挑战题/.test(html), '掌握度 0.95 的知识点该显示解锁到挑战档');
+  assert.ok(/已解锁巩固题|只出基础题/.test(html), '中间档也要有个说法');
+  assert.ok((html.match(/kp-tier/g) || []).length === K.implemented().length - 1,
+    '每个练过的知识点各有一行档位说明，没练过的不该有');
 });
 
 test('转屏重量画布尺寸，不会把指针事件绑第二遍', () => {

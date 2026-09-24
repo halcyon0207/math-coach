@@ -13,6 +13,8 @@
   'use strict';
 
   var K = window.Knowledge, T = window.Templates, E = window.Engine, S = window.Store;
+  // 跨设备同步。没引 cloud.js 时这里是 null，同步调用全部跳过，项目照常跑。
+  var F = (typeof window !== 'undefined' && window.FamilySync) ? window.FamilySync : null;
 
   var app = {
     state: null,
@@ -42,7 +44,11 @@
     // 一离开就归零，下次进来重新输，孩子连点几下也摸不到里面的错题和"清空数据"。
     parentUnlocked: false,
     passInput: '',       // 口令输入框当前内容（render 会换掉 DOM，得存这儿回填）
-    passMsg: ''          // 设口令/输口令时的提示
+    passMsg: '',         // 设口令/输口令时的提示
+    // 跨设备同步：别的设备上传的统计快照（只在内存里）
+    cloudReports: [],
+    cloudMsg: '',
+    famInput: ''
   };
 
   var el = function (id) { return document.getElementById(id); };
@@ -194,6 +200,12 @@
         var left = Math.ceil((st.dueAt - Date.now()) / 86400000);
         dueTxt = left <= 0 ? '今天该复习' : (left === 1 ? '明天复习' : left + ' 天后复习');
       }
+      // 这一档说的是什么：现在这个知识点能出到哪一档的题。
+      // 它是"先夯实基础才给难题"这条规则唯一的可见处 —— 看不见的话，
+      // 家长会以为系统在随机出题，孩子会以为练习册突然变难了。
+      var ceil = E.tierCeiling(state, k.id);
+      var tierTxt = untouched ? '' : (ceil >= 3 ? '已解锁挑战题'
+        : ceil === 2 ? '已解锁巩固题' : '只出基础题，练稳了才加档');
       return '' +
         '<div class="kp-row">' +
         '<div class="kp-head">' +
@@ -204,6 +216,7 @@
         '<div class="kp-foot">' +
         '<span>' + (untouched ? '课本第 ' + k.bookPage + ' 页' : '练过 ' + st.attempts + ' 题，对 ' + st.corrects + ' 题') + '</span>' +
         (dueTxt ? '<span class="kp-due">' + esc(dueTxt) + '</span>' : '') +
+        (tierTxt ? '<span class="kp-tier">' + esc(tierTxt) + '</span>' : '') +
         (method ? '<span class="kp-method">主要方法：' + esc(method.name) + '</span>' : '') +
         '</div>' +
         '</div>';
@@ -376,14 +389,23 @@
         '</div>';
     }
 
+    // 难度档徽章（基础 / 巩固 / 挑战）。三档是照着教材和教案的分层给的，
+    // 巩固和挑战要练到才解锁 —— 所以这一栏同时也是给孩子看的"我练到哪了"。
+    var tier = q.diffTier || null;
+    var tierChip = tier ? '<span class="badge-tier tier-' + esc(tier.key) + '">' +
+      esc(tier.name) + '</span>' : '';
+    var tierTip = (tier && tier.level > 1)
+      ? '<span class="why-tier">这一档：' + esc(tier.tip) + '</span>' : '';
+
     return '' +
       '<div class="topbar">' +
       '<button class="btn-icon" data-act="quit" title="退出练习">✕</button>' +
       '<div class="dots">' + dots + '</div>' +
+      tierChip +
       '<span class="topbar-right">' + (app.cursor + 1) + '/' + total + '</span>' +
       '</div>' +
 
-      '<div class="why"><span class="why-k">为什么给你出这道题</span>' + esc(q.reason) + '</div>' +
+      '<div class="why"><span class="why-k">为什么给你出这道题</span>' + esc(q.reason) + tierTip + '</div>' +
       '<div class="card card-q">' +
       // 画布只盖"看题区"（题干和图），不盖下面的步骤 ——
       // 单栏内联之后作答控件也在题卡里，整张卡都铺上画布的话，
@@ -945,6 +967,7 @@
       correct: app.results.filter(function (r) { return r.isCorrect; }).length
     });
     saveState();
+    pushReport();       // 开了跨设备同步的话，家长在别的设备上就能看到这一场
     app.view = 'result';
     render();
   }
@@ -964,6 +987,7 @@
         quit: true
       });
       saveState();
+      pushReport();
     }
     app.view = 'home';
     app.session = null;
@@ -972,7 +996,85 @@
 
   /* ============================== 视图：家长报告 ============================== */
   // 给家长看的页，不给孩子看：练了多久、效率怎么样、错在哪。
-  // 数据全部来自本机的历史记录，不上传任何地方。
+  // 数据默认只在本机；开了跨设备同步之后，家长可以在别的设备上看到这台设备的统计。
+
+  // 统计快照：覆盖写，云端只留每台设备的最新一份。
+  // 全量历史就在孩子设备上，没必要再往云端堆一份。
+  function reportSnapshot() {
+    return {
+      devName: (F && F.sync() && F.sync().name) || '设备',
+      ts: Date.now(),
+      sessions: (app.state.sessions || []).slice(-100),
+      history: (app.state.history || []).slice(-200),
+      stats: app.state.stats || {}
+    };
+  }
+
+  function pushReport() {
+    if (!F || !F.on()) return;
+    F.pushReport(reportSnapshot());
+  }
+
+  function refreshReports() {
+    if (!F || !F.on()) return;
+    F.pullReports().then(function (list) {
+      app.cloudReports = list || [];
+      if (app.view === 'parent') render();
+    }).catch(function () { /* 连不上就只看本机的 */ });
+  }
+
+  // 别的设备上练得怎么样
+  function cloudReportsHtml() {
+    if (!F || !F.on() || !app.cloudReports || !app.cloudReports.length) return '';
+    var myDev = F.sync().dev;
+    var rows = app.cloudReports.filter(function (r) { return r.dev !== myDev; });
+    if (!rows.length) return '';
+
+    var list = rows.map(function (r) {
+      var h = (r.snapshot && r.snapshot.history) || [];
+      var ok = h.filter(function (x) { return x.isCorrect; }).length;
+      var pct = h.length ? Math.round(ok / h.length * 100) : 0;
+      var when = r.ts ? fmtTime(r.ts) : '';
+      return '<p class="card-note"><b>' + esc((r.snapshot && r.snapshot.devName) || '另一台设备') +
+        '</b>　练了 ' + ((r.snapshot && r.snapshot.sessions) || []).length + ' 次 · ' +
+        h.length + ' 题 · 答对 ' + ok + ' 题（' + pct + '%）' +
+        (when ? '　· 更新于 ' + esc(when) : '') + '</p>';
+    }).join('');
+
+    return '<div class="card card-quiet">' +
+      '<h2 class="card-title">别的设备上</h2>' +
+      '<p class="card-note">下面是另 ' + rows.length + ' 台设备最近一次上传的情况（本机在上面）。</p>' +
+      list +
+      '</div>';
+  }
+
+  // 跨设备同步的开关（只在家长报告页里，孩子碰不到）
+  function syncCardHtml() {
+    if (!F) return '';
+    var s = F.sync();
+    if (!s.on) {
+      return '<div class="card">' +
+        '<h2 class="card-title">跨设备同步</h2>' +
+        '<p class="card-note">开了之后，你在自己手机上就能看到孩子在这台设备上练得怎么样。' +
+        '不用点同步，数据仍然只在这台设备上（除非你开）。</p>' +
+        '<button class="btn btn-primary btn-block" data-act="sync-on">生成一个家庭码</button>' +
+        '<p class="card-note">另一台设备已经生成过的话，直接把那个码填进来：</p>' +
+        '<input id="famInput" class="pass-input" type="text" placeholder="xxxx-xxxx-xxxx" ' +
+        'autocomplete="off" value="' + esc(app.famInput || '') + '">' +
+        '<button class="btn btn-soft btn-block" data-act="sync-join">用这个码</button>' +
+        (app.cloudMsg ? '<div class="feedback warn">' + esc(app.cloudMsg) + '</div>' : '') +
+        '</div>';
+    }
+    return '<div class="card">' +
+      '<h2 class="card-title">跨设备同步</h2>' +
+      '<p class="card-note">家庭码　<b>' + esc(s.fam) + '</b></p>' +
+      '<p class="card-note">另一台设备在同一个地方填上这个码就对上了。' +
+      '知道这个码的人能看到练习情况 —— 别发给外人。</p>' +
+      '<p class="card-note">' + esc(F.statusText()) + '</p>' +
+      '<button class="btn btn-ghost btn-block" data-act="sync-new">换一个码</button>' +
+      '<button class="btn btn-soft btn-block" data-act="sync-off">关掉同步</button>' +
+      '</div>';
+  }
   function fmtTime(ts) {
     if (!ts) return '—';
     var d = new Date(ts);
@@ -987,8 +1089,53 @@
     return min >= 1 ? (min + ' 分 ' + sec + ' 秒') : (sec + ' 秒');
   }
 
+  // 报告要用的数据：本机 + 云端各设备（去重后合并）。
+  //
+  // 不合并的话，家长在自己手机上打开报告页会是空的 —— 那台设备一场都没练过，
+  // 记录全在孩子那台设备上。跨设备看报告要成立，这一步是必须的。
+  function mergedState() {
+    var st = app.state;
+    if (!F || !F.on() || !app.cloudReports || !app.cloudReports.length) return st;
+    var myDev = F.sync().dev;
+
+    var hist = (st.history || []).slice();
+    var sessions = (st.sessions || []).slice();
+    var stats = {};
+    Object.keys(st.stats || {}).forEach(function (k) { stats[k] = Object.assign({}, st.stats[k]); });
+
+    var seenH = {}, seenS = {};
+    hist.forEach(function (h) { seenH[h.ts + '|' + (h.sessionId || '') + '|' + h.kpId] = 1; });
+    sessions.forEach(function (s) { seenS[s.id] = 1; });
+
+    app.cloudReports.forEach(function (r) {
+      if (r.dev === myDev) return;   // 本机那份已经在上面算过了
+      var snap = r.snapshot || {};
+      (snap.history || []).forEach(function (h) {
+        var k = h.ts + '|' + (h.sessionId || '') + '|' + h.kpId;
+        if (seenH[k]) return;
+        seenH[k] = 1;
+        hist.push(h);
+      });
+      (snap.sessions || []).forEach(function (s) {
+        if (seenS[s.id]) return;
+        seenS[s.id] = 1;
+        sessions.push(s);
+      });
+      // 知识点统计要累加，不是覆盖 —— 两台设备各练 5 题就是练过 10 题
+      Object.keys(snap.stats || {}).forEach(function (kp) {
+        var a = stats[kp] = stats[kp] || { attempts: 0, corrects: 0, wrongs: 0 };
+        var b = snap.stats[kp] || {};
+        a.attempts += b.attempts || 0;
+        a.corrects += b.corrects || 0;
+        a.wrongs += b.wrongs || 0;
+      });
+    });
+
+    return { history: hist, sessions: sessions, stats: stats, mastery: st.mastery, passcode: st.passcode };
+  }
+
   function viewParent() {
-    var state = app.state;
+    var state = mergedState();
     var hist = state.history || [];
 
     var topbar = function (title) {
@@ -1009,6 +1156,7 @@
         '<div class="card">' +
         '<h2 class="card-title">先设一个口令</h2>' +
         '<p class="card-note">这里能看到错题、导出记录，还能清空数据，给孩子看不合适。设个 4～6 位数字。</p>' +
+        '<p class="card-note">口令只存在这台设备上，所以换一台设备就要再设一次（可以和别的设备不一样）。</p>' +
         '<input id="passInput" class="pass-input" type="text" inputmode="numeric" autocomplete="off" ' +
         'placeholder="输入口令" value="' + esc(app.passInput) + '">' +
         '<button class="btn btn-primary btn-block" data-act="set-pass">设好，进去看报告</button>' +
@@ -1125,6 +1273,9 @@
       (wrongRows || '<p class="card-note">还没有错题，很好。</p>') +
       '</div>' +
 
+      cloudReportsHtml() +
+      syncCardHtml() +
+
       '<div class="card card-quiet">' +
       '<h2 class="card-title">清空数据</h2>' +
       '<p class="card-note">换孩子用、或者重新开始。会连同这条口令一起清掉，不能撤销。</p>' +
@@ -1134,7 +1285,8 @@
 
   function exportCsv() {
     var rows = [['时间', '知识点', '题干', '对错', '错因', '阶梯步错因', '用时（秒）', '提示到第几级']];
-    (app.state.history || []).forEach(function (h) {
+    // 用合并后的历史：家长在自己手机上导出时，导出来才有孩子那台设备上的记录
+    (mergedState().history || []).forEach(function (h) {
       var label = function (t) { return (T.ERROR_TAGS[t] || {}).label || t; };
       rows.push([
         fmtTime(h.ts),
@@ -1212,6 +1364,7 @@
     if (t.id === 'answerInput') { app.input = t.value; return; }
     // 口令框同理：只记账不 render，否则打一个字失焦一次，根本没法输完
     if (t.id === 'passInput') app.passInput = t.value;
+    if (t.id === 'famInput') app.famInput = t.value;
   }
 
   function onClick(e) {
@@ -1231,6 +1384,7 @@
       app.view = 'parent';
       app.passInput = '';
       app.passMsg = '';
+      refreshReports();   // 别的设备练得怎么样
       return render();
     }
     if (act === 'set-pass') {
@@ -1244,6 +1398,7 @@
       app.passInput = '';
       app.passMsg = '';
       saveState();
+      refreshReports();
       return render();
     }
     if (act === 'unlock') {
@@ -1255,6 +1410,37 @@
       app.parentUnlocked = true;
       app.passInput = '';
       app.passMsg = '';
+      refreshReports();
+      return render();
+    }
+
+    /* ---- 跨设备同步（只在家长报告页里能点到） ---- */
+    if (act === 'sync-on' || act === 'sync-new') {
+      if (!F) return;
+      // enable 自己会校验格式，返回"到底开没开"
+      app.cloudMsg = F.enable(F.newCode()) ? '' : '没能开启同步，再点一次试试。';
+      saveState();
+      return render();
+    }
+    if (act === 'sync-join') {
+      if (!F) return;
+      var code = String(app.famInput || '').trim().toLowerCase();
+      if (!F.enable(code)) {
+        app.cloudMsg = '家庭码是 12 位，形如 xxxx-xxxx-xxxx（字母和数字，中间两道横杠）。';
+        return render();
+      }
+      F.enable(code);
+      app.famInput = '';
+      app.cloudMsg = '';
+      saveState();
+      refreshReports();
+      return render();
+    }
+    if (act === 'sync-off') {
+      if (!F) return;
+      F.disable();
+      app.cloudReports = [];
+      saveState();
       return render();
     }
     if (act === 'unit') {
@@ -1288,6 +1474,9 @@
     if (act === 'reset') {
       if (!app.parentUnlocked) return;
       if (window.confirm('确定清空所有练习记录吗？这个操作不能撤销。')) {
+        // 开了跨设备同步的话，云端这份也要跟着清 ——
+        // 不然清空之后，别人那台设备还会看到这台设备的旧数据（墓碑挡住它）
+        if (F && F.on()) F.clearDevice();
         app.state = S.reset();
         app.parentUnlocked = false;
         app.passInput = '';
@@ -1386,7 +1575,18 @@
       window.visualViewport.addEventListener('resize', refit);
     }
 
+    if (F) {
+      F.init(app.state, {
+        onStatus: function () { if (app.view === 'parent') render(); }
+      });
+    }
+
     render();
+  }
+
+  // 给测试挂的钩子：浏览器里它就是个没人理的对象，不影响任何行为
+  if (typeof window !== 'undefined') {
+    window.__mc = { app: app, reportSnapshot: reportSnapshot, pushReport: pushReport };
   }
 
   if (document.readyState === 'loading') {
