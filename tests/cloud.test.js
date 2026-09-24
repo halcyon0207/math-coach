@@ -193,6 +193,22 @@ test('家长在自己手机上看报告：本机一场没练，也能看到孩�
   assert.ok(out.indexOf('80%') >= 0, '知识点正确率按累加后的统计算');
 });
 
+test('家庭码抄错一位：要提示"抄错了"，不能静默连进一个空家庭', async () => {
+  const t = boot();
+  const wrong = (t.fam.charAt(0) === 'a' ? 'b' : 'a') + t.fam.slice(1);
+
+  t.click('parent');
+  t.type('passInput', '1234');
+  t.click('set-pass');
+  t.type('famInput', wrong);
+  t.click('sync-join');
+  await flush();
+
+  assert.ok(t.sandbox.__mc.app.cloudMsg.indexOf('抄错') >= 0, '要说清楚是抄错了');
+  assert.strictEqual(t.sandbox.FamilySync.on(), false, '抄错的码不能算开启');
+  assert.strictEqual(t.calls.length, 0, '也没发出请求');
+});
+
 test('清空数据：云端那份也要跟着清（不然别的设备还能看到旧数据）', async () => {
   const t = boot();
   t.sandbox.FamilySync.enable(t.fam);
