@@ -49,12 +49,76 @@
     cloudReports: [],
     cloudMsg: '',
     famInput: '',
+    // 「提交给家长」的结果提示（成功 / 没开同步 / 没传上去）
+    submitMsg: '',
+    // 报告里"看哪一段时间"（今天 / 最近 7 天 / 最近 30 天 / 全部）。
+    // 家长的用法是"看看这几天练了什么"，所以默认最近 7 天。
+    range: '7',
     // 从首页点「跨设备同步」进来时先过口令；过了之后直接去同步页，
     // 不用家长自己再找一遍。见 onClick 的 'sync' 和 viewSync()。
     afterUnlock: ''
   };
 
   var el = function (id) { return document.getElementById(id); };
+
+  /* ------------------------------ 日期 ------------------------------ */
+  // 只到"天"：家长要知道的是"这块知识哪天练的"，精确到分秒没有意义。
+  function fmtDay(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var n = new Date();
+    function same(x, y) {
+      return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
+    }
+    if (same(d, n)) return '今天';
+    var y1 = new Date(n.getTime() - 24 * 60 * 60 * 1000);
+    if (same(d, y1)) return '昨天';
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  }
+
+  // 按钮角标用短格式，免得把一行按钮撑开
+  function fmtDayShort(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  function lastAtOfKp(id) {
+    var st = E.statsOf(app.state, id);
+    return (st && st.lastPracticedAt) || 0;
+  }
+
+  /* ------------------------------ 报告看哪一段时间 ------------------------------ */
+  // 家长问的是"这几天他练得怎么样"，不是"有史以来"。按**日历天**切，不按 24 小时 ——
+  // 晚上九点做的那题，第二天早上看"今天"就该不在了。
+  var DAY_MS = 24 * 60 * 60 * 1000;
+  var RANGES = [
+    { k: 'today', name: '今天' },
+    { k: '7', name: '最近 7 天' },
+    { k: '30', name: '最近 30 天' },
+    { k: 'all', name: '全部' }
+  ];
+
+  function dayStart(t) {
+    var d = new Date(t);
+    if (typeof d.setHours === 'function') d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function rangeStart(k) {
+    var base = dayStart(Date.now());
+    if (k === 'today') return base;
+    if (k === '7') return base - 6 * DAY_MS;    // 含今天，一共 7 天
+    if (k === '30') return base - 29 * DAY_MS;
+    return 0;                                   // 全部
+  }
+
+  function rangeName(k) {
+    for (var i = 0; i < RANGES.length; i++) if (RANGES[i].k === k) return RANGES[i].name;
+    return '全部';
+  }
+
+  function inRange(ts, since) { return (ts || 0) >= since; }
 
   // 保存必须看结果。隐私模式、空间满、被沙箱拦住时 localStorage.setItem 会抛，
   // 只 console.warn 的表现就是"练了半天，下次打开全没了"，家长查都查不出来。
@@ -71,6 +135,124 @@
     });
   }
 
+  /* ====================== 没做完的那一场（断点续练） ====================== */
+  // 一场 10 题，做到第 6 题被叫走是常态。以前下次进来重新组一套题，
+  // 前面的白做、后面的也接不上。
+  //
+  // 所以把这一场"原样"存在本机：题目本身 + 做到第几题 + 每一步的对错 + 笔迹。
+  // 存题目而不是只存种子，是因为组卷会看"哪些知识点到期了、最近做过什么" ——
+  // 隔一天拿同一个种子重算，出来的可能就是另一套题，状态会对错格子。
+  function saveDraft() {
+    if (!app.session || !Array.isArray(app.session.questions) || !app.session.questions.length) return;
+    app.state.draft = {
+      ts: Date.now(),
+      seed: app.session.seed,
+      id: app.session.id,
+      startedAt: app.session.startedAt,
+      unit: app.state.unit,
+      cursor: app.cursor,
+      stepStates: app.stepStates,
+      results: app.results,
+      input: app.input,
+      choiceValue: app.choiceValue,
+      hintLevel: app.hintLevel,
+      hintLevelSeen: app.hintLevelSeen,
+      hintUsedInQuestion: app.hintUsedInQuestion,
+      strokes: app.strokes,
+      penOn: app.penOn,
+      questionStartAt: app.questionStartAt,
+      questions: app.session.questions
+    };
+    // 题目里可能带插图之类的数据，极端情况下会比较大。太大就不存草稿 ——
+    // 宁可下次重新组一套题，也不能把本机存储顶爆（顶爆之后连练习记录都存不进去）。
+    var text = '';
+    try { text = JSON.stringify(app.state.draft); } catch (e) { text = ''; }
+    if (!text || text.length > 200 * 1024) {
+      app.state.draft = null;
+      return;
+    }
+    saveState();
+  }
+
+  function clearDraft() {
+    if (!app.state.draft) return;
+    app.state.draft = null;
+    saveState();
+  }
+
+  // 一道题的空状态。数学的 stepStates 是"当前这道题各步"的状态
+  //（不是每题一个），所以条数要跟着题目里那一步一步来。
+  function emptyStepStates(stepCount) {
+    var out = [];
+    for (var i = 0; i < stepCount; i++) {
+      out.push({ attempts: 0, done: false, isCorrect: false, lastValue: null, errorTag: null, firstErrorTag: null });
+    }
+    return out;
+  }
+
+  function resumeDraft() {
+    var d = app.state.draft;
+    if (!d || !Array.isArray(d.questions) || !d.questions.length) {
+      app.state.draft = null;
+      return render();
+    }
+    app.session = {
+      id: d.id || ('S' + Date.now()),
+      seed: d.seed,
+      startedAt: d.startedAt || Date.now(),
+      endedAt: null,
+      questions: d.questions,
+      cursor: 0
+    };
+    app.cursor = Math.min(Math.max(0, d.cursor || 0), d.questions.length - 1);
+    app.stepStates = Array.isArray(d.stepStates) ? d.stepStates : [];
+    app.results = Array.isArray(d.results) ? d.results : [];
+    // 防御：这一题的状态条数必须和它的步骤数对上，否则 render 会读到 undefined，
+    // 表现就是"点继续就白屏"。对不上就把这一题当作没开始过 ——
+    // 宁可重做一道，也不能打不开。
+    var curSteps = (d.questions[app.cursor] && d.questions[app.cursor].steps) || [];
+    if (app.stepStates.length !== curSteps.length) {
+      app.stepStates = emptyStepStates(curSteps.length);
+      app.feedback = null;
+    }
+    // 光标落在"第一个还没做完的步骤"上。直接设成 0 的话，
+    // 已经做完前两步的题会把后面的步骤判成 locked —— 孩子点不动，看着像卡死。
+    app.activeStep = 0;
+    for (var si = 0; si < app.stepStates.length; si++) {
+      if (!app.stepStates[si].done) break;
+      app.activeStep = si + 1;
+    }
+    app.input = d.input || '';
+    app.choiceValue = (d.choiceValue === undefined) ? null : d.choiceValue;
+    app.hintLevel = d.hintLevel || 0;
+    app.hintLevelSeen = d.hintLevelSeen || 0;
+    app.hintUsedInQuestion = !!d.hintUsedInQuestion;
+    app.strokes = d.strokes || [];
+    app.penOn = !!d.penOn;
+    app.showRuler = false;
+    app.feedback = null;
+    app.submitMsg = '';
+    app.questionStartAt = d.questionStartAt || Date.now();
+    app.view = 'practice';
+    render();
+  }
+
+  function draftCard() {
+    var d = app.state.draft;
+    if (!d || !Array.isArray(d.questions) || !d.questions.length) return '';
+    var at = d.cursor || 0;
+    if (at >= d.questions.length) return '';
+    var done = (d.stepStates || []).filter(function (s) { return s && s.done; }).length;
+    return '<div class="card card-due">' +
+      '<h2 class="card-title">上次还没做完</h2>' +
+      '<p class="card-note">做到第 ' + (at + 1) + ' 题（共 ' + d.questions.length + ' 题），' +
+      esc(fmtDay(d.ts)) + '，其中 ' + done + ' 题已经答过。接着做，答过的不重算。</p>' +
+      '<div class="action-row">' +
+      '<button class="btn btn-soft" data-act="drop-draft">不用了</button>' +
+      '<button class="btn btn-primary" data-act="resume">继续做</button>' +
+      '</div></div>';
+  }
+
   /* ============================== 视图：首页 ============================== */
   function viewHome() {
     var state = app.state;
@@ -83,8 +265,16 @@
     var unitBtns = '<div class="unit-row">' +
       '<button class="unit-btn' + (unit === 'all' ? ' on' : '') + '" data-act="unit" data-u="all">全部</button>' +
       K.units().map(function (u) {
+        // 练过哪个单元就标上最后一次是哪天：孩子一眼能看出哪块动过、哪块还没碰
+        var at = 0;
+        K.implemented().forEach(function (k) {
+          if (k.unit !== u) return;
+          var t = lastAtOfKp(k.id);
+          if (t > at) at = t;
+        });
         return '<button class="unit-btn' + (unit === u ? ' on' : '') + '" data-act="unit" data-u="' + esc(u) + '">' +
-          esc(K.shortUnit(u)) + '</button>';
+          esc(K.shortUnit(u)) +
+          (at ? '<span class="when">' + esc(fmtDayShort(at)) + '</span>' : '') + '</button>';
       }).join('') +
       '</div>';
 
@@ -161,6 +351,8 @@
 
       dueCard +
 
+      draftCard() +
+
       '<div class="card card-cta">' +
       '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
       '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前两道是热身。</div>' +
@@ -178,15 +370,20 @@
 
       '<div class="card card-quiet">' +
       '<h2 class="card-title">学习进度</h2>' +
-      '<p class="card-note">看看哪块亮、哪块暗。</p>' +
-      '<button class="btn btn-ghost btn-block" data-act="progress">查看掌握度地图</button>' +
-      '<button class="btn btn-ghost btn-block" data-act="parent">家长报告（家长 · 需口令）</button>' +
-      // 家庭码以前只藏在报告页最底下，家长翻半天也找不着。
-      // 单独给一个入口，和报告一样要口令（家庭码等于全家的钥匙）。
-      '<button class="btn btn-ghost btn-block" data-act="sync">跨设备同步（家庭码 · 需口令）</button>' +
+      // 一行两个主入口：看掌握度、看报告。家庭码配一次基本不动，收成下面一行。
+      '<div class="parent-row">' +
+      '<button class="btn btn-soft" data-act="progress">掌握度地图</button>' +
+      '<button class="btn btn-soft" data-act="parent">家长报告</button>' +
+      '</div>' +
+      '<div class="parent-row">' +
+      // 家庭码以前只藏在报告页最底下，家长翻半天也找不着 —— 单独留一个入口，
+      // 和报告一样要口令（家庭码等于全家的钥匙）。
+      '<button class="btn btn-ghost" data-act="sync">跨设备同步</button>' +
+      '</div>' +
+      '<p class="card-note">家长报告要口令（里面有错题和正确答案）。报告里也能进同步设置。</p>' +
       '</div>' +
 
-      '<p class="footnote">数据只保存在这台设备上，不会上传。</p>';
+      '<p class="footnote">不填家庭码时，数据只保存在这台设备上。</p>';
   }
 
   /* ============================== 视图：进度地图 ============================== */
@@ -215,6 +412,8 @@
       var ceil = E.tierCeiling(state, k.id);
       var tierTxt = untouched ? '' : (ceil >= 3 ? '已解锁挑战题'
         : ceil === 2 ? '已解锁巩固题' : '只出基础题，练稳了才加档');
+      // 哪天练的：家长看报告时要能对得上"这星期练了哪几天"
+      var lastTxt = (!untouched && st.lastPracticedAt) ? ('上次练：' + fmtDay(st.lastPracticedAt)) : '';
       return '' +
         '<div class="kp-row">' +
         '<div class="kp-head">' +
@@ -224,6 +423,7 @@
         '<div class="bar">' + (untouched ? '' : '<i class="' + cls + '" style="width:' + pct + '%"></i>') + '</div>' +
         '<div class="kp-foot">' +
         '<span>' + (untouched ? '课本第 ' + k.bookPage + ' 页' : '练过 ' + st.attempts + ' 题，对 ' + st.corrects + ' 题') + '</span>' +
+        (lastTxt ? '<span>' + esc(lastTxt) + '</span>' : '') +
         (dueTxt ? '<span class="kp-due">' + esc(dueTxt) + '</span>' : '') +
         (tierTxt ? '<span class="kp-tier">' + esc(tierTxt) + '</span>' : '') +
         (method ? '<span class="kp-method">主要方法：' + esc(method.name) + '</span>' : '') +
@@ -286,6 +486,8 @@
   function viewPractice() {
     var q = currentQuestion();
     if (!q) return '<div class="card">题目加载失败。</div>';
+    // 这块知识上次什么时候练的：孩子得有个"我是不是刚练过"的参照
+    var lastAt = lastAtOfKp(q.kpId);
 
     // 方法跟着题型走，不是跟着知识点走
     var method = K.METHODS[q.method];
@@ -415,6 +617,9 @@
       '</div>' +
 
       '<div class="why"><span class="why-k">为什么给你出这道题</span>' + esc(q.reason) + tierTip + '</div>' +
+      '<p class="card-note">' + esc(lastAt
+        ? ('这块知识上次练过：' + fmtDay(lastAt))
+        : '这块知识这是第一次练') + '</p>' +
       '<div class="card card-q">' +
       // 画布只盖"看题区"（题干和图），不盖下面的步骤 ——
       // 单栏内联之后作答控件也在题卡里，整张卡都铺上画布的话，
@@ -430,7 +635,16 @@
       toolsHtml +
       rulerPanel +
       feedback +
-      actions;
+      (app.submitMsg ? '<div class="feedback info">' + esc(app.submitMsg) + '</div>' : '') +
+      actions +
+      // 交的时机是"这一场做完"（做完会自动把统计推上去），不是做一题交一题。
+      // 这个按钮是给"我想早点让家长看到"用的。
+      '<div class="action-row">' +
+      '<button class="btn btn-ghost" data-act="my-records">看这一场的记录</button>' +
+      '<button class="btn btn-soft" data-act="submit-report">提交给家长</button>' +
+      '</div>' +
+      '<p class="card-note">不会自动上传：点一下「提交给家长」就把已经答过的题交上去 —— ' +
+      '挑个空闲的时候点，家长那边马上就能看到。</p>';
   }
 
   function displayAnswer(step, v) {
@@ -816,6 +1030,66 @@
     return out;
   }
 
+  /* ============================== 视图：这一场的记录 ============================== */
+  // 这一场做到哪儿、每题对没错、填的是什么、错在哪 —— 随时能翻，
+  // 不用等整场结束看结果页。数学由程序判分，这些就是"批改"的全部内容。
+  function recordRows(list) {
+    return list.map(function (r) {
+      var tag = tagsOf(r)[0];
+      var info = tag ? (T.ERROR_TAGS[tag] || { label: tag }) : null;
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(r.stem || '（无题干）') + '</span>' +
+        '<span class="kp-label">' + (r.isCorrect ? '对' : '错') + '</span></div>' +
+        '<div class="kp-foot">' +
+        '<span>' + esc((K.byId(r.kpId) || {}).name || '') +
+        (r.ts ? '　' + esc(fmtDay(r.ts)) : '') + '</span>' +
+        '<span>' + (r.answer ? '你填的：' + esc(r.answer) : '') +
+        (r.isCorrect ? '' : ((r.answer ? '　' : '') + esc(info ? info.label : '再算一遍试试'))) + '</span>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function viewRecords() {
+    var head = '<div class="topbar">' +
+      '<button class="btn-icon" data-act="home">←</button>' +
+      '<span class="topbar-title">这一场的记录</span>' +
+      '<span class="topbar-right"></span></div>';
+
+    var mine = (app.results || []).slice().reverse();
+    var body;
+    if (mine.length) {
+      body = '<div class="card"><h2 class="card-title">这一场已答 ' + mine.length + ' 题</h2>' +
+        '<p class="card-note">对错、你填的答案、错在哪，都记在这里。</p>' +
+        recordRows(mine) + '</div>';
+    } else {
+      var hist = (app.state.history || []).slice(-20).reverse();
+      body = '<div class="card"><h2 class="card-title">最近做过的题</h2>' +
+        '<p class="card-note">这一场还没答过题，下面是之前做过的。</p>' +
+        (hist.length ? recordRows(hist) : '<p class="card-note">还没有记录。</p>') + '</div>';
+    }
+    return head + body + '<button class="btn btn-ghost btn-block" data-act="home">回首页</button>';
+  }
+
+  /* --------------------------- 提交给家长（上传报告） --------------------------- */
+  // 数学是程序判分，没有"等家长批"这一步 —— 这里的"提交"是把这一场的统计快照
+  // 推上去，家长在自己手机上就能看到"做到哪儿了、对了多少"。
+  function submitReport() {
+    if (!F || !F.on()) {
+      app.submitMsg = '还没开跨设备同步。让家长在「跨设备同步」里填上家庭码，' +
+        '之后就能把练习情况传到家长手机上。';
+      return render();
+    }
+    app.submitMsg = '正在提交…';
+    render();
+    F.pushReport(reportSnapshot()).then(function () {
+      app.submitMsg = '已提交。家长在另一台设备上打开报告就能看到这一场。';
+      render();
+    }).catch(function (e) {
+      app.submitMsg = '没提交上去（' + ((e && e.message) || '网络不通') + '）。记录还在本机，下次会自动补。';
+      render();
+    });
+  }
+
   /* ============================== 会话流程 ============================== */
   function currentQuestion() {
     return app.session ? app.session.questions[app.cursor] : null;
@@ -829,8 +1103,11 @@
     app.cursor = 0;
     app.results = [];
     app.summary = null;
+    app.submitMsg = '';
     prepareQuestion();
     app.view = 'practice';
+    // 整场题存进 draft：做到一半被打断，下次进同一台设备接着做
+    saveDraft();
     render();
   }
 
@@ -1012,6 +1289,9 @@
       stem: finalStep.prompt,
       isCorrect: !!fs.isCorrect,
       attempts: fs.attempts,
+      // 孩子填的是什么也记下来：家长看报告时，"他答的是几"比一句"错了"有用得多。
+      // 截前 24 个字符 —— 答案本身很短，防的是极端输入把存储撑大。
+      answer: String(fs.lastValue == null ? '' : fs.lastValue).slice(0, 24),
       errorTag: fs.isCorrect ? null : (fs.firstErrorTag || fs.errorTag),
       stepTags: stepTags,
       magnitudeFailed: !!fs.magnitudeFailed,
@@ -1038,6 +1318,7 @@
     }
     app.cursor++;
     prepareQuestion();
+    saveDraft();   // 没做完：记下做到第几题，下次接着做
     render();
   }
 
@@ -1052,17 +1333,20 @@
       total: app.results.length,
       correct: app.results.filter(function (r) { return r.isCorrect; }).length
     });
+    clearDraft();       // 这一场做完了，草稿不用留
     saveState();
-    pushReport();       // 开了跨设备同步的话，家长在别的设备上就能看到这一场
+    // 不自动上传：什么时候把这一场的成绩交给家长，由人点「提交给家长」决定
     app.view = 'result';
     render();
   }
 
   function quitSession() {
-    if (!window.confirm('要退出这次练习吗？已经做过的题会记下来，没做的不会算。')) return;
+    if (!window.confirm('要退出这次练习吗？已经做过的题会记下来，没做的不会算。\n' +
+      '下次进来还能接着做没做完的那些。')) return;
     finishQuestion();
+    var hasResults = !!(app.results && app.results.length);
     // 一道都没做就别记这一次"练习"，否则家长报告里会出现"练了 0 题"的记录
-    if (app.results.length) {
+    if (hasResults) {
       app.state.sessions = app.state.sessions || [];
       app.state.sessions.push({
         id: app.session.id,
@@ -1072,9 +1356,19 @@
         correct: app.results.filter(function (r) { return r.isCorrect; }).length,
         quit: true
       });
-      saveState();
-      pushReport();
     }
+    // 刚退出的这一题已经记过账了，草稿要推到下一题 ——
+    // 不推的话下次"继续做"会把同一道题再算一遍，掌握度也跟着多记一笔。
+    if (app.session && app.cursor + 1 < app.session.questions.length) {
+      app.cursor++;
+      prepareQuestion();
+      app.submitMsg = '';
+      saveDraft();
+    } else {
+      clearDraft();
+    }
+    // 不自动上传：要交给家长就点「提交给家长」（见 submitReport）
+    if (hasResults) saveState();
     app.view = 'home';
     app.session = null;
     render();
@@ -1108,6 +1402,13 @@
       if (app.view === 'parent') render();
     }).catch(function () { /* 连不上就只看本机的 */ });
   }
+
+  /* ------------------- 为什么不做定时轮询（这是刻意的） ------------------- */
+  // 试过在报告页每 30 秒自动拉一次，用下来不合适：页面在背后不停地请求。
+  // 所以用"手动一下"的模型（和 05_商品到期提醒 那套一样）：
+  //   · 孩子：这一场做完自动推一次统计；也可以点「提交给家长」马上推
+  //   · 家长：报告页点「刷新」拉一次别的设备的最新统计
+  //   · 打开页面 / 从后台切回时各拉一次，其余时间一次请求都不发
 
   // 别的设备上练得怎么样
   function cloudReportsHtml() {
@@ -1243,6 +1544,21 @@
     return { history: hist, sessions: sessions, stats: stats, mastery: st.mastery, passcode: st.passcode };
   }
 
+  // 报告里切"看哪一段时间"。只影响场次 / 错题 / 每道题记录三块的明细；
+  // 总览和"错误点都在哪"一直是累计的 —— 那些数字变小反而会让人以为数据丢了。
+  function rangePickerHtml() {
+    var cur = app.range || '7';
+    return '<div class="card card-quiet">' +
+      '<h2 class="card-title">看哪一段时间</h2>' +
+      '<div class="unit-row">' + RANGES.map(function (r) {
+        return '<button class="unit-btn' + (r.k === cur ? ' on' : '') +
+          '" data-act="range" data-r="' + r.k + '">' + r.name + '</button>';
+      }).join('') + '</div>' +
+      '<p class="card-note">切换只影响下面「每次练习」「错题」「每道题的记录」三块；' +
+      '上面的总览和「错误点都在哪」一直是全部（累计）。</p>' +
+      '</div>';
+  }
+
   function viewParent() {
     var state = mergedState();
     var hist = state.history || [];
@@ -1300,8 +1616,16 @@
     hist.forEach(function (h) { totalMs += h.timeSpentMs || 0; });
     var totalOk = hist.filter(function (h) { return h.isCorrect; }).length;
 
-    // ---- 每一场 ----
-    var sessionRows = (state.sessions || []).slice().reverse().slice(0, 30).map(function (s) {
+    // 一段时间内的记录：家长要看的是"这几天练了什么"，不是从头翻到尾
+    var since = rangeStart(app.range || '7');
+    var rangeTxt = rangeName(app.range || '7');
+    var rangeHist = hist.filter(function (h) { return inRange(h.ts, since); });
+    var okRange = rangeHist.filter(function (h) { return h.isCorrect; }).length;
+
+    // ---- 每一场（按选的时间段筛）----
+    var sessionRows = (state.sessions || []).filter(function (s) {
+      return inRange(s.endedAt || s.startedAt, since);
+    }).slice().reverse().slice(0, 30).map(function (s) {
       var agg = bySession[s.id] || { n: 0, ok: 0, ms: 0, hints: 0 };
       var pct = agg.n ? Math.round(agg.ok / agg.n * 100) : 0;
       // 效率就看"每题约多少秒"：明显变慢，多半是卡在某个知识点上磨蹭
@@ -1340,7 +1664,7 @@
     }).join('');
 
     // ---- 最近错题 ----
-    var wrongRows = hist.filter(function (h) { return !h.isCorrect; }).slice(-15).reverse()
+    var wrongRows = rangeHist.filter(function (h) { return !h.isCorrect; }).slice(-20).reverse()
       .map(function (h) {
         var ts = tagsOf(h).map(function (t) {
           return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
@@ -1353,37 +1677,80 @@
           '</div>';
       }).join('');
 
+    // ---- 每道题的记录（对的也列）----
+    // 只列错题的话，家长看不到"他做对了哪些、什么时候做的"，
+    // 而报告的价值有一半恰恰在"对的那部分稳不稳"。
+    var detailRows = rangeHist.slice(-60).reverse().map(function (h) {
+      var dts = tagsOf(h).map(function (t) {
+        return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
+      });
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
+        '<span class="kp-label">' + (h.isCorrect ? '对' : '错') + '</span></div>' +
+        '<div class="kp-foot">' +
+        '<span>' + esc(fmtTime(h.ts)) + '　' + esc((K.byId(h.kpId) || {}).name || '') + '</span>' +
+        '<span>' + (h.answer ? '他填的是 ' + esc(h.answer) : '') +
+        (h.isCorrect ? '' : ((h.answer ? '　' : '') + esc(dts.join('、') || '再算一遍试试'))) +
+        '</span></div></div>';
+    }).join('');
+
     return '' +
       topbar('家长报告') +
+
+      // 报告页只放报告：同步设置挪去它自己那页，别挡在报告中间
+      '<div class="card card-quiet">' +
+      '<p class="card-note">报告里包含练习和判定的全部内容。要在自己手机上看，' +
+      '去「跨设备同步」填上同一个家庭码（一个码管语文和数学）。</p>' +
+      '<button class="btn btn-ghost btn-block" data-act="sync">跨设备同步设置</button>' +
+      // 家长在自己手机上看报告时，孩子那台设备可能刚练完 —— 给一条不用切后台的路
+      '<button class="btn btn-ghost btn-block" data-act="reload-report">刷新（看看有没有新数据）</button>' +
+      '</div>' +
 
       '<div class="card">' +
       '<h2 class="card-title">总览</h2>' +
       (hist.length
         ? '<p class="card-note">练了 ' + (state.sessions || []).length + ' 次 · 共 ' + hist.length +
           ' 题 · 答对 ' + totalOk + ' 题（' + Math.round(totalOk / hist.length * 100) + '%） · 做题用时 ' +
-          esc(fmtDur(totalMs)) + '</p>'
+          esc(fmtDur(totalMs)) + '</p>' +
+          '<p class="card-note">' + rangeTxt + '练了 ' + rangeHist.length + ' 题' +
+          (rangeHist.length
+            ? '，答对 ' + okRange + ' 题（' + Math.round(okRange / rangeHist.length * 100) + '%）' : '') +
+          '。</p>'
         : '<p class="card-note">还没有练习记录。孩子做完一场，这里就能看到时间和正确率。</p>') +
       '<button class="btn btn-ghost btn-block" data-act="export-csv">导出全部记录（CSV，可用 Excel 打开）</button>' +
       '</div>' +
 
+      rangePickerHtml() +
+
       '<div class="card">' +
-      '<h2 class="card-title">每次练习</h2>' +
+      '<h2 class="card-title">每次练习（' + rangeTxt + '）</h2>' +
       '<p class="card-note">看「每题约多少秒」判断效率：明显变慢多半是卡住了。</p>' +
-      (sessionRows || '<p class="card-note">还没有记录。</p>') +
+      (sessionRows || '<p class="card-note">这段时间没有练习记录 —— 换「最近 30 天」或「全部」看看。</p>') +
       '</div>' +
 
       '<div class="card">' +
-      '<h2 class="card-title">错误点都在哪</h2>' +
+      '<h2 class="card-title">错误点都在哪（累计）</h2>' +
       (kpRows || '<p class="card-note">还没有数据。</p>') +
       '</div>' +
 
       '<div class="card">' +
-      '<h2 class="card-title">最近的错题</h2>' +
-      (wrongRows || '<p class="card-note">还没有错题，很好。</p>') +
+      '<h2 class="card-title">错题（' + rangeTxt + '，最多 20 条）</h2>' +
+      (wrongRows || (rangeHist.length
+        ? '<p class="card-note">这段时间没有错题，挺好。</p>'
+        : '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>')) +
       '</div>' +
 
+      // 每道题的判定记录：家长最需要的一块 —— 题干、他填的答案、对错、错因、日期。
+      // 光看"错误点都在哪"的百分比，落不到"具体哪一道、他当时填的是什么"。
+      '<div class="card">' +
+      '<h2 class="card-title">每道题的记录（' + rangeTxt + '，' + detailRows.length + ' 条）</h2>' +
+      '<p class="card-note">最近的在最上面。写着"他填的是"那一句，是孩子当时实际写下的答案。</p>' +
+      (detailRows || '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>') +
+      '</div>' +
+
+      // 别的设备上练得怎么样：报告正文其实已经把它们的记录合并进来了，
+      // 这一段是"数据来自哪几台设备"的来源说明，家长对不上数时靠它核对。
       cloudReportsHtml() +
-      syncCardHtml() +
 
       '<div class="card card-quiet">' +
       '<h2 class="card-title">清空数据</h2>' +
@@ -1442,9 +1809,10 @@
     var html = app.view === 'home' ? viewHome()
       : app.view === 'practice' ? viewPractice()
         : app.view === 'result' ? viewResult()
-          : app.view === 'parent' ? viewParent()
-            : app.view === 'sync' ? viewSync()
-              : viewProgress();
+          : app.view === 'records' ? viewRecords()
+            : app.view === 'parent' ? viewParent()
+              : app.view === 'sync' ? viewSync()
+                : viewProgress();
 
     var warn = app.storageWarn
       ? '<div class="card card-warn">' + esc(app.storageWarn) + '</div>'
@@ -1502,7 +1870,15 @@
     if (typeof t.blur === 'function') t.blur();
 
     if (act === 'start') return startSession();
-    if (act === 'home') { app.session = null; app.view = 'home'; return render(); }
+    if (act === 'resume') return resumeDraft();
+    if (act === 'drop-draft') { clearDraft(); return render(); }
+    if (act === 'submit-report') return submitReport();
+    if (act === 'my-records') { app.submitMsg = ''; app.view = 'records'; return render(); }
+    // 报告里切"看哪一段时间"（今天 / 7 天 / 30 天 / 全部）
+    if (act === 'range') { app.range = t.getAttribute('data-r') || '7'; return render(); }
+    // 「刷新」：马上拉一次别的设备的统计，别让家长自己想到去切后台
+    if (act === 'reload-report') { refreshReports(); return render(); }
+    if (act === 'home') { app.session = null; app.view = 'home'; app.submitMsg = ''; return render(); }
     if (act === 'progress') { app.view = 'progress'; return render(); }
     if (act === 'parent') {
       app.view = 'parent';
@@ -1732,6 +2108,14 @@
         onStatus: function () { if (app.view === 'parent') render(); }
         // 家庭码在语文 / 数学之间共用，第三参数把两边的数据隔开
       }, 'math');
+    }
+
+    // 从后台切回前台时拉一次别的设备的统计（点「家长报告」进页面时也会拉）。
+    // 不做定时器，也不轮询 —— 联网只发生在"进报告页 / 切回来 / 自己点刷新"这几个时刻。
+    if (typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible' && app.view === 'parent') refreshReports();
+      });
     }
 
     render();

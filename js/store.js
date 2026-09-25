@@ -31,6 +31,9 @@
       sessions: [],   // 每次练习的汇总
       unit: 'all',    // 这次练哪个单元（'all' = 全部混着来）
       passcode: '',   // 家长口令，空 = 还没设置。挡住的是"孩子自己进去看报告、清空数据"
+      // 没做完的那一场：种子 + 做到第几题 + 每步的对错 + 笔迹。
+      // 练到一半被打断是常态，下次进同一台设备要能接着做（见 app.js 的 saveDraft）。
+      draft: null,
       sync: null      // 跨设备同步（家庭码 / 设备标识），见 js/cloud.js；没开就是 null
     };
   }
@@ -60,6 +63,7 @@
         sessions: arr(s.sessions, []),
         unit: str(s.unit, 'all'),
         passcode: str(s.passcode, ''),
+        draft: obj(s.draft, null),
         sync: obj(s.sync, { on: false, fam: '', dev: '', name: '', lastAt: 0 })
       };
     } catch (e) {

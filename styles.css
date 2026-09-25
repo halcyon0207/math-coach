@@ -507,3 +507,14 @@ html, body {
 .unit-block { margin-top: 14px; }
 .unit-block:first-child { margin-top: 0; }
 .unit-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+/* ==================== 家长区：一行两个主按钮 ==================== */
+/* 家长进来最常做的是"看掌握度"和"看报告"，这两个并排在最上面；
+   家庭码配一次基本就不动了，收成下面一行的小按钮。 */
+.parent-row { display: flex; gap: 8px; margin-top: 8px; }
+.parent-row .btn { flex: 1; padding: 10px 8px; font-size: 15px; }
+
+/* ==================== 日期角标 ==================== */
+/* "上次练：9月24日" / 单元按钮上的 9/24：练过没有、什么时候练的，
+   孩子和家长都得看得见 —— 不然只能靠猜。 */
+.when { color: var(--muted); font-size: 12px; margin-left: 6px; white-space: nowrap; }
