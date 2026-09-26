@@ -13,6 +13,14 @@
   'use strict';
 
   var K = window.Knowledge, T = window.Templates, E = window.Engine, S = window.Store;
+  // 哪天上学、哪天放假（含调休补班）。没引 holidays.js 时退回"周末算放假"，
+  // 首页照常能用 —— 少认几个法定假日，好过整页打不开。
+  var H = window.Holidays || {
+    dayKind: function (ts) {
+      var wd = new Date(ts).getDay();
+      return { kind: (wd === 0 || wd === 6) ? 'off' : 'school', label: '', holiday: '' };
+    }
+  };
   // 跨设备同步。没引 cloud.js 时这里是 null，同步调用全部跳过，项目照常跑。
   var F = (typeof window !== 'undefined' && window.FamilySync) ? window.FamilySync : null;
 
@@ -253,6 +261,105 @@
       '</div></div>';
   }
 
+  /* ====================== 今天的数学（每日小份） ======================
+   *
+   * 数学和语文不一样：语文每天有新课文，数学一个单元要上一个星期甚至几个星期，
+   * 所以"每天练数学"不能靠新课驱动，得另给一份固定的小份。
+   *
+   * 这一份是 7 道、约 6 分钟：1 道热身 + 1 道还没见过的新内容 + 最多 3 块到期复习
+   * + 补几道最弱的 + 最后 1 道挑战。它解决的是**门槛**：练 15 道的日子，
+   * 注意力一短就干脆不点了；7 道做完，习惯才立得住。
+   *
+   * 完成情况**不另存一份状态**，直接用 sessions 里现成的记录算 ——
+   * 另存一份就得跟跨设备同步、清空、导入导出各对一遍，那种账迟早会烂。
+   */
+  function startOfDay(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  // 今天练过的场次（按结束时间算；没结束的按开始时间）
+  function todaySessions() {
+    var from = startOfDay(Date.now());
+    return (app.state.sessions || []).filter(function (s) {
+      return (s.endedAt || s.startedAt || 0) >= from;
+    });
+  }
+
+  // 本周（周一起）练过几天。用"本周几天"而不是"连续几天"：
+  // 断一天就归零的打卡，对小孩是压力不是奖励。
+  function weekPracticeDays() {
+    var d = new Date();
+    var wd = (d.getDay() + 6) % 7;               // 周一 = 0
+    var from = startOfDay(Date.now()) - wd * 86400000;
+    var days = {};
+    (app.state.sessions || []).forEach(function (s) {
+      var t = s.endedAt || s.startedAt || 0;
+      if (t >= from) days[startOfDay(t)] = 1;
+    });
+    return Object.keys(days).length;
+  }
+
+  function todayCard() {
+    var state = app.state;
+    var unit = state.unit || 'all';
+    var done = todaySessions();
+    var doneQ = done.reduce(function (n, s) { return n + (s.total || 0); }, 0);
+    var rightQ = done.reduce(function (n, s) { return n + (s.correct || 0); }, 0);
+    var week = weekPracticeDays();
+
+    // 这一份里会有什么，说清楚比"开始练习"四个字有用得多
+    var kps = K.implemented().filter(function (k) {
+      return unit === 'all' || k.unit === unit;
+    });
+    var freshN = kps.filter(function (k) { return E.statsOf(state, k.id).attempts === 0; }).length;
+    var dueN = E.dueKnowledge(state, unit).length;
+    var plan = ['1 道热身'];
+    if (freshN) plan.push('1 道还没见过的新内容');
+    if (dueN) plan.push('最多 ' + Math.min(3, dueN) + ' 道到期复习');
+    plan.push('1 道挑战');
+
+    var weekLine = week > 0 ? ('本周已经练了 ' + week + ' 天。') : '';
+
+    // 今天上学还是放假 —— 放假的日子时间多，可以多练一份大的。
+    // **调休补班的周六周日按上学日处理**：那天照样要上学，别催他加量。
+    var day = H.dayKind(Date.now());
+    var offDay = day.kind === 'off';
+    var big = state.count || E.QUESTIONS_PER_SESSION;
+
+    // 放假那一天多说一句；补班日也说一句（不然家长会奇怪"周末怎么不提示多练"）
+    var dayLine = '';
+    if (!done.length && offDay) {
+      dayLine = '<p class="card-note">今天' + esc(day.label) +
+        '，时间多的话可以练一份大的；这一份小的做完也算数。</p>';
+    } else if (!done.length && day.label) {
+      dayLine = '<p class="card-note">' + esc(day.label) + ' —— 先做完这 ' +
+        E.DAILY_COUNT + ' 道就行，不加量。</p>';
+    }
+
+    var todayLine = done.length
+      ? '<div class="today-done-line">✓ 今天练过了：' + doneQ + ' 道题' +
+        (doneQ ? ('，做对 ' + rightQ + ' 道') : '') + '</div>' +
+        '<p class="card-note">' + esc(weekLine) + '想再练一份也行 —— 换一批题。</p>'
+      : '<p class="card-note">' + E.DAILY_COUNT + ' 道，约 6 分钟：' +
+        esc(plan.join(' → ')) + '。</p>' +
+        dayLine +
+        '<p class="card-note">' + esc(weekLine) +
+        '每天把这一份做完，就算今天的数学练过了。</p>';
+
+    return '<div class="card card-today">' +
+      '<h2 class="card-title">今天的数学</h2>' +
+      todayLine +
+      '<button class="btn btn-primary btn-lg btn-block" data-act="start-daily">' +
+      (done.length ? '再练一份' : '开始今天的数学') + '</button>' +
+      // 放假才出现的那一条：题量还是让孩子（或家长）自己定，我们不硬加
+      (!done.length && offDay
+        ? '<button class="btn btn-soft btn-block" data-act="start">练 ' + big + ' 道（大份）</button>'
+        : '') +
+      '</div>';
+  }
+
   /* ============================== 视图：首页 ============================== */
   function viewHome() {
     var state = app.state;
@@ -335,6 +442,10 @@
         '<ul class="tag-list">' + dueList.map(function (k) {
           return '<li><b>' + esc(k.name) + '</b></li>';
         }).join('') + '</ul>' +
+        // 以前这张卡只能看 —— 看得见摸不着，还得自己回去选单元再开始。
+        // 现在点一下就只练这几块，不多掺别的。
+        '<button class="btn btn-primary btn-block" data-act="start-due">' +
+        '就练这些（' + dueList.length + ' 块）</button>' +
         '</div>'
       : '';
 
@@ -344,6 +455,12 @@
       '<p class="hero-sub">西师大版 · 四年级上册</p>' +
       '</div>' +
 
+      // 今天的数学放最上面：打开页面第一个要回答的问题是"今天练什么"，
+      // 而不是"练哪个单元"。单元选择挪到它下面，想挑单元再往下翻。
+      todayCard() +
+
+      draftCard() +
+
       '<div class="card">' +
       '<h2 class="card-title">练哪个单元</h2>' +
       '<p class="card-note">一次练一个单元，比混在一起效果好。</p>' +
@@ -351,8 +468,6 @@
       '</div>' +
 
       dueCard +
-
-      draftCard() +
 
       '<div class="card card-cta">' +
       '<div class="cta-line">练 ' + count + ' 题，大约 ' + count + ' 分钟</div>' +
@@ -1025,6 +1140,71 @@
     }
   }
 
+  /* ====================== 错题自述：你觉得卡在哪一步？ ======================
+   *
+   * 做完之后，把这一场错的几道摆出来，让他自己点一下卡在哪儿。
+   * 这一步的价值不在"分类准不准"，而在两件事：
+   *   1. 他得**回头看一遍**自己那几道，而不是错了就点下一题；
+   *   2. 他说的和系统推断的**对不上**时，那才是真正值得记下来的一笔 ——
+   *      他以为错在计算，其实方法就没想起来，那要补的方向完全不一样。
+   *
+   * 三个选项都用中性说法，**不把系统判断透露给他**：透了他就会挑那个"标准答案"，
+   * 这份自述就白记了。不想点也没关系，不拦着他回首页。
+   */
+  var SELF_TAGS = [
+    { key: 'calc', label: '算错了' },
+    { key: 'read', label: '看错了（看错数、漏条件）' },
+    { key: 'method', label: '方法没想起来' }
+  ];
+
+  function selfTagLabel(key) {
+    var hit = null;
+    SELF_TAGS.forEach(function (t) { if (t.key === key) hit = t.label; });
+    return hit || '';
+  }
+
+  // 系统错因粗分成三类，好和孩子自己说的对一对。
+  // 不必精确到每个标签 —— 这里要判断的只是"他以为错在哪儿"和"系统看到的问题"
+  // 是不是同一类，粗一点反而稳。
+  function errorGroup(tag) {
+    if (!tag) return '';
+    if (/CALC|SUM|PRODUCT|ROUND_WRONG/.test(tag)) return 'calc';
+    if (/READ|DIGIT|AXIS|VALUE|FORGOT|COPY|MISS|SKIP|ZERO_COUNT|ZERO_LOW|ZERO_HIGH/.test(tag)) return 'read';
+    return 'method';
+  }
+
+  function selfReviewCard() {
+    var wrong = (app.results || []).filter(function (r) { return !r.isCorrect; });
+    if (!wrong.length) return '';
+    var show = wrong.slice(0, 4);
+    var rows = show.map(function (r) {
+      var chosen = r.selfTag || '';
+      // 用"这一场里的第几道"当标识，不用 qid：qid 里带着花括号和引号
+      // （形如 T-0401-A@{"a":20}），塞进 HTML 属性会被转义，回头就对不上了
+      var idx = (app.results || []).indexOf(r);
+      var chips = SELF_TAGS.map(function (t) {
+        return '<button class="chip' + (chosen === t.key ? ' on' : '') +
+          '" data-act="self-tag" data-i="' + idx + '" data-t="' + t.key + '">' +
+          esc(t.label) + '</button>';
+      }).join('');
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(r.stem || '这道题') + '</span>' +
+        '<span class="kp-label">' + esc((K.byId(r.kpId) || {}).name || '') + '</span></div>' +
+        '<div class="self-row">' + chips + '</div>' +
+        '</div>';
+    }).join('');
+
+    return '<div class="card">' +
+      '<h2 class="card-title">回头看看这几道</h2>' +
+      '<p class="card-note">不用改答案，只想一下：刚才这几道，卡在哪一步了？' +
+      '（不想说也没关系，直接回首页。）</p>' +
+      rows +
+      (wrong.length > show.length
+        ? '<p class="card-note">还有 ' + (wrong.length - show.length) + ' 道错的没列出来。</p>'
+        : '') +
+      '</div>';
+  }
+
   /* ============================== 视图：结果 ============================== */
   function viewResult() {
     var s = app.summary;
@@ -1064,6 +1244,46 @@
       }
     });
 
+    // ---- 今天的变化：给它三个数，别只给一个百分比 ----
+    // 掌握度是给家长看的，孩子要的是"我今天比昨天强在哪"。所以这里只说三件事：
+    // 做对几道、今天解锁了什么、今天最费劲的是哪一块。
+    var unlocked = [];
+    var seenKp = {};
+    ((app.session && app.session.questions) || []).forEach(function (q) {
+      if (seenKp[q.kpId]) return;
+      seenKp[q.kpId] = 1;
+      var before = ((app.session.tiersBefore || {})[q.kpId]) || 0;
+      var nowTier = E.tierCeiling(app.state, q.kpId);
+      if (nowTier > before) {
+        var t = K.TIERS[nowTier - 1];
+        unlocked.push('「' + ((K.byId(q.kpId) || {}).name || '') + '」可以出' + t.name + '题了');
+      }
+    });
+
+    var hardest = null;
+    s.byKp.forEach(function (k) {
+      if (k.correct >= k.total) return;          // 全对的就不提，别硬凑
+      var rate = k.correct / k.total;
+      if (!hardest || rate < hardest.rate) hardest = { name: k.name, k: k, rate: rate };
+    });
+
+    var highlights = '';
+    if (unlocked.length) {
+      highlights += '<li><b>解锁了：</b>' + esc(unlocked.join('；')) +
+        '<span class="advice">这一档的题以前不出，练到位了才给你。</span></li>';
+    }
+    if (hardest) {
+      highlights += '<li><b>今天最费劲的是「' + esc(hardest.name) + '」</b>' +
+        '<span class="advice">对 ' + hardest.k.correct + '/' + hardest.k.total +
+        '。下次还会碰到它，不过会先给你一段热身。</span></li>';
+    }
+
+    // 今天的数学做完了要有句准话 —— 这一份的存在意义就是"做完就算数"
+    var dailyLine = (app.session && app.session.mode === 'daily')
+      ? '<div class="today-done-line">✓ 今天的数学做完了</div>' +
+        '<p class="card-note">本周已经练了 ' + weekPracticeDays() + ' 天。</p>'
+      : '';
+
     return '' +
       '<div class="topbar">' +
       '<span class="topbar-right"></span>' +
@@ -1079,10 +1299,22 @@
         : '这次一道都没用提示，很专注。') + '</div>' +
       '</div>' +
 
+      (dailyLine || highlights
+        ? '<div class="card">' +
+          dailyLine +
+          (highlights
+            ? '<h2 class="card-title">今天的变化</h2><ul class="tag-list">' + highlights + '</ul>'
+            : '') +
+          '</div>'
+        : '') +
+
       '<div class="card">' +
       '<h2 class="card-title">掌握度变化</h2>' +
       kpRows +
       '</div>' +
+
+      // 先让他自己回看，再给"下一步该练什么" —— 顺序反了就成了说教
+      selfReviewCard() +
 
       (adviceList || trace
         ? '<div class="card">' +
@@ -1113,6 +1345,13 @@
     return list.map(function (r) {
       var tag = tagsOf(r)[0];
       var info = tag ? (T.ERROR_TAGS[tag] || { label: tag }) : null;
+      // 孩子自己说的 vs 系统看到的。不一致的时候最值得家长看一眼 ——
+      // 他以为错在计算，其实是方法就没想起来，那要补的方向完全不一样。
+      var g1 = errorGroup(tag), g2 = r.selfTag || '';
+      var diverge = (g1 && g2 && g1 !== g2)
+        ? '<div class="advice">他自己说「' + esc(selfTagLabel(g2)) + '」，系统看到的是「' +
+          esc(info ? info.label : tag) + '」—— 这一类分歧值得多问一句。</div>'
+        : '';
       return '<div class="kp-row">' +
         '<div class="kp-head"><span class="kp-name">' + esc(r.stem || '（无题干）') + '</span>' +
         '<span class="kp-label">' + (r.isCorrect ? '对' : '错') + '</span></div>' +
@@ -1120,8 +1359,9 @@
         '<span>' + esc((K.byId(r.kpId) || {}).name || '') +
         (r.ts ? '　' + esc(fmtDay(r.ts)) : '') + '</span>' +
         '<span>' + (r.answer ? '你填的：' + esc(r.answer) : '') +
-        (r.isCorrect ? '' : ((r.answer ? '　' : '') + esc(info ? info.label : '再算一遍试试'))) + '</span>' +
-        '</div></div>';
+        (r.isCorrect ? '' : ((r.answer ? '　' : '') + esc(info ? info.label : '再算一遍试试'))) +
+        (r.selfTag ? '　他说：' + esc(selfTagLabel(r.selfTag)) : '') + '</span>' +
+        '</div>' + diverge + '</div>';
     }).join('');
   }
 
@@ -1171,12 +1411,25 @@
     return app.session ? app.session.questions[app.cursor] : null;
   }
 
-  function startSession() {
+  // mode: 'daily' = 今天的数学（小份）/ 'due' = 只练到期的 / 不传 = 正常一场
+  function startSession(mode) {
     var seed = E.randomSeed();
     var rng = E.mulberry32(seed);
-    // 题量由首页那个"10 / 15 / 20"决定（store 里默认 15）
-    app.session = E.buildSession(app.state, rng, app.state.count, app.state.unit);
+    // 题量由首页那个"10 / 15 / 20"决定（store 里默认 15）；
+    // 每日小份是固定 7 道，不看那个设置 —— 它本来就是"今天这一份"。
+    var count = app.state.count || E.QUESTIONS_PER_SESSION;
+    var opts = {};
+    if (mode === 'daily') { count = E.DAILY_COUNT; opts.daily = true; }
+    if (mode === 'due') opts.dueOnly = true;
+    app.session = E.buildSession(app.state, rng, count, app.state.unit, opts);
     app.session.seed = seed;
+    app.session.mode = mode || '';   // 场末小结和"今天练过没有"要看这个
+    // 记下这一场开始前每块"解锁到第几档"。场末拿它比一比 ——
+    // 孩子最在意的是"我今天进步在哪"，不是"我掌握度 0.72"。
+    app.session.tiersBefore = {};
+    app.session.questions.forEach(function (q) {
+      app.session.tiersBefore[q.kpId] = E.tierCeiling(app.state, q.kpId);
+    });
     app.cursor = 0;
     app.results = [];
     app.summary = null;
@@ -1423,7 +1676,10 @@
       startedAt: app.session.startedAt,
       endedAt: app.session.endedAt,
       total: app.results.length,
-      correct: app.results.filter(function (r) { return r.isCorrect; }).length
+      correct: app.results.filter(function (r) { return r.isCorrect; }).length,
+      // 这一场是怎么进来的（今天的数学 / 只练到期 / 正常一场）。
+      // 首页"今天练过没有"、报告里"这周练了几天"都靠这个字段区分。
+      mode: app.session.mode || ''
     });
     clearDraft();       // 这一场做完了，草稿不用留
     saveState();
@@ -1446,6 +1702,7 @@
         endedAt: Date.now(),
         total: app.results.length,
         correct: app.results.filter(function (r) { return r.isCorrect; }).length,
+        mode: app.session.mode || '',
         quit: true
       });
     }
@@ -1986,6 +2243,26 @@
     if (typeof t.blur === 'function') t.blur();
 
     if (act === 'start') return startSession();
+    // 今天的数学：固定 7 道的小份（题量设置不影响它）
+    if (act === 'start-daily') return startSession('daily');
+    // 首页「该复习了」那张卡上的一键：只练到期的，不掺别的
+    if (act === 'start-due') return startSession('due');
+    // 错题自述：他说卡在哪一步。结果页那一份和 history 里那一份都要记 ——
+    // 结果页当场显示，history 是给家长报告看的（还要和系统判断对一对）。
+    if (act === 'self-tag') {
+      var si = parseInt(t.getAttribute('data-i'), 10);
+      var srec = (app.results || [])[si];
+      if (!srec) return render();
+      var stg = t.getAttribute('data-t');
+      srec.selfTag = stg;
+      // history 里那一条也要记 —— 家长报告读的是 history（而且它要跨设备同步）
+      var sid = app.session && app.session.id;
+      (app.state.history || []).forEach(function (h) {
+        if (h.sessionId === sid && h.qid === srec.qid) h.selfTag = stg;
+      });
+      saveState();
+      return render();
+    }
     if (act === 'resume') return resumeDraft();
     if (act === 'drop-draft') { clearDraft(); return render(); }
     if (act === 'submit-report') return submitReport();

@@ -23,6 +23,11 @@
   // 所以多给一档更长的，并且把默认值挪到 15（见 store.js 的 defaultState）。
   var SESSION_COUNTS = [10, 15, 20];
 
+  // 「今天的数学」一份几道。数学不像语文每天有新内容，靠"每天练一场大的"是留不住
+  // 习惯的 —— 一份小的、6 分钟能做完的，孩子才愿意天天点。内容和正常一场不一样：
+  // 1 热身 + 1 新露面 + 最多 3 到期 + 补薄弱 + 1 压轴（见 buildSession 的 daily 分支）。
+  var DAILY_COUNT = 7;
+
   /* ============================== 间隔复习 ============================== */
   // 答对就往后推一档，答错退回第一天。
   //
@@ -387,7 +392,8 @@
     return '';
   }
 
-  function buildSession(state, rng, count, unitFilter) {
+  function buildSession(state, rng, count, unitFilter, opts) {
+    opts = opts || {};
     // 题量夹在合理区间里：短于 6 道时热身（固定 2 道）就占了三分之一，
     // 长于 30 道孩子坐不住，而且错题复习的名额会被摊薄。存坏了的值在这里挡住。
     count = Math.max(6, Math.min(30, count || QUESTIONS_PER_SESSION));
@@ -429,15 +435,8 @@
 
     var highest = open.slice().sort(function (a, b) { return b.difficulty - a.difficulty; })[0];
 
-    var slots = [];
-    slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.26 });
-    slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.30 });
-
-    // 中间部分（热身之后、挑战之前）
-    var middleTarget = Math.max(1, count - slots.length - 1);
-    var middle = [];
-
-    // 先把到期清单算出来：下面"没练过的"能占多少名额，取决于有没有复习要插进来。
+    // 先把到期清单算出来：三种组卷方式都要用它（正常一场 / 每日小份 / 只练到期）。
+    // 「没练过的」能占多少名额，取决于有没有复习要插进来 —— 这个判断在下面。
     var now = Date.now();
     var dueKps = kps.filter(function (k) {
       var s = statsOf(state, k.id);
@@ -446,6 +445,132 @@
       // 到期的一批内部，还是弱的先来：到期且没掌握的，比到期但很熟的更值得现在练。
       return masteryOf(state, a.id) - masteryOf(state, b.id);
     });
+
+    // 把一组"名额"生成真正的题目。三种组卷方式走到这里就只剩名额的差别 ——
+    // 挑模板、防重复、给理由的规则必须一模一样，否则同一道题在不同入口下
+    // 会出现两种行为，家长和孩子都会觉得"怎么跟上次不一样"。
+    function assemble(slotList) {
+      var questions = [];
+      var recent = [];
+      var usedQids = {};
+      var usedTplIds = {};   // 这一场已经出过的题型：同一套卷子里尽量不撞题型
+      // 探究题一场只出一次：state 在组卷过程中不会变（作答记录要练完才写回），
+      // 光看 attempts === 0 会让同一知识点的第二个名额又抓一次探究题，
+      // 而它生成的题目是完全相同的。
+      var introDone = {};
+
+      slotList.forEach(function (slot) {
+        // 传知识点 id（不是布尔）：chooseTemplate 只认"这个知识点的探究题"，
+        // 免得把别的知识点的探究题抓到热身 / 压轴名额里。
+        var introKp = (slot.kp && statsOf(state, slot.kp.id).attempts === 0 && !introDone[slot.kp.id])
+          ? slot.kp.id : null;
+        var tpl = null, q = null, tries = 0;
+        while (tries < 12) {
+          tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp, avoid, usedTplIds);
+          if (tpl.intro) introDone[tpl.kp] = true;
+          var kpId2 = tpl.kp;
+          var lvl = scaffoldLevelFor(masteryOf(state, kpId2), statsOf(state, kpId2));
+          q = buildQuestion(tpl, rng, lvl);
+          if (!usedQids[q.qid]) break;
+          tries++;
+        }
+        usedQids[q.qid] = 1;
+        usedTplIds[tpl.id] = 1;
+        recent.push(tpl.id);
+        if (recent.length > 2) recent.shift();
+
+        var kpInfo = slot.kp || Knowledge.byId(tpl.kp);
+        var st = statsOf(state, tpl.kp);
+        q.reason = reasonFor(slot.kind, kpInfo, st, !!tpl.intro);
+        q.slotKind = slot.kind;
+        questions.push(q);
+      });
+
+      return {
+        id: 'S' + Date.now(),
+        seed: null,
+        startedAt: Date.now(),
+        endedAt: null,
+        questions: questions,
+        cursor: 0
+      };
+    }
+
+    var slots = [];
+
+    // ---------- 方式一：「就练这些」——只练到期的 ----------
+    // 首页那张「该复习了」的卡上点一下就进这里。到期只有两块就只出两块，
+    // 不拿别的题把场次凑满 —— 凑进去的那几道不是他现在要练的。
+    if (opts.dueOnly) {
+      slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.28 });
+      dueKps.slice(0, Math.max(1, count - 1)).forEach(function (k) {
+        slots.push({
+          kind: 'review', pool: unlockedTemplates(state, k.id), kp: k,
+          diff: targetDifficulty(state, k)
+        });
+      });
+      if (slots.length > 1) return assemble(slots);
+      slots = [];   // 没有到期的（正常走不到这儿）：退回下面正常组卷
+    }
+
+    // ---------- 方式二：今天的数学（每日小份）----------
+    // 1 道热身 + 1 道"今天认识个新的" + 最多 3 道到期 + 补齐薄弱 + 1 道压轴。
+    // 它不是"把大场次切小"，而是另一种节奏：每天有新东西看一眼、有旧东西复习一下、
+    // 最后一个挑战收尾。门槛低到孩子愿意每天点，习惯才立得住。
+    if (opts.daily) {
+      // 日常份固定 7 道：它不受首页那个 10/15/20 的影响 —— 那一份就是"今天这一份"
+      count = DAILY_COUNT;
+      slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.28 });
+
+      var picked = {};
+      function dailyKp(kind, k) {
+        picked[k.id] = 1;
+        slots.push({
+          kind: kind, pool: unlockedTemplates(state, k.id), kp: k,
+          diff: targetDifficulty(state, k)
+        });
+      }
+
+      // ① 今天认识个新的：本单元还没碰过的挑一个（这就是"预习"该有的样子 ——
+      //    第一次露面会出探究题，把概念一步步搭出来，不是考他）
+      var fresh = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; })[0];
+      if (fresh) dailyKp('weak', fresh);
+
+      // ② 到期的，最多 3 块（到期多的时候留给"就练这些"，日常份不塞满）
+      dueKps.filter(function (k) { return !picked[k.id]; }).slice(0, 3)
+        .forEach(function (k) { dailyKp('review', k); });
+
+      // ③ 剩下的名额补最弱的，一个知识点在这场里只出一次
+      var need = Math.max(0, count - slots.length - 1);
+      byWeak.filter(function (k) { return !picked[k.id]; }).slice(0, need)
+        .forEach(function (k) { dailyKp('weak', k); });
+
+      // ④ 压轴：已解锁里最难的一道，答错不算失败。
+      //    走"次难、且今天没出过"的那个知识点 —— 一份才 7 道，
+      //    同一块出现两次就显得单调（按单元练时池子本来就小）。
+      //    真没有可用的了（单元里知识点太少）就**不加压轴**：宁可短一道，
+      //    也不塞一道重复的。
+      var toughest = open.slice()
+        .sort(function (a, b) { return b.difficulty - a.difficulty; })
+        .filter(function (t) { return !picked[t.kp]; })[0];
+      if (toughest) {
+        slots.push({
+          kind: 'challenge',
+          pool: unlockedTemplates(state, toughest.kp),   // 只在这个知识点里挑，保证不撞
+          kp: Knowledge.byId(toughest.kp),
+          diff: toughest.difficulty
+        });
+      }
+      return assemble(slots);
+    }
+
+    // ---------- 方式三：正常一场（按单元或全部）----------
+    slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.26 });
+    slots.push({ kind: 'warmup', pool: warmPool, kp: null, diff: 0.30 });
+
+    // 中间部分（热身之后、挑战之前）
+    var middleTarget = Math.max(1, count - slots.length - 1);
+    var middle = [];
 
     // 1) 还没练过的知识点先露面（每个 1 个位置）。
     //    不这么做的话，"薄弱"和"抗遗忘"两档会把名额占满 ——
@@ -538,50 +663,7 @@
     slots.push({ kind: 'challenge', pool: open, kp: Knowledge.byId(highest.kp), diff: highest.difficulty });
     slots = slots.slice(0, count);
 
-    var questions = [];
-    var recent = [];
-    var usedQids = {};
-    var usedTplIds = {};   // 这一场已经出过的题型：同一套卷子里尽量不撞题型
-    // 探究题一场只出一次：state 在组卷过程中不会变（作答记录要练完才写回），
-    // 光看 attempts === 0 会让同一知识点的第二个名额又抓一次探究题，
-    // 而它生成的题目是完全相同的。
-    var introDone = {};
-
-    slots.forEach(function (slot) {
-      // 传知识点 id（不是布尔）：chooseTemplate 只认"这个知识点的探究题"，
-      // 免得把别的知识点的探究题抓到热身 / 压轴名额里。
-      var introKp = (slot.kp && statsOf(state, slot.kp.id).attempts === 0 && !introDone[slot.kp.id])
-        ? slot.kp.id : null;
-      var tpl = null, q = null, tries = 0;
-      while (tries < 12) {
-        tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp, avoid, usedTplIds);
-        if (tpl.intro) introDone[tpl.kp] = true;
-        var kpId2 = tpl.kp;
-        var lvl = scaffoldLevelFor(masteryOf(state, kpId2), statsOf(state, kpId2));
-        q = buildQuestion(tpl, rng, lvl);
-        if (!usedQids[q.qid]) break;
-        tries++;
-      }
-      usedQids[q.qid] = 1;
-      usedTplIds[tpl.id] = 1;
-      recent.push(tpl.id);
-      if (recent.length > 2) recent.shift();
-
-      var kpInfo = slot.kp || Knowledge.byId(tpl.kp);
-      var st = statsOf(state, tpl.kp);
-      q.reason = reasonFor(slot.kind, kpInfo, st, !!tpl.intro);
-      q.slotKind = slot.kind;
-      questions.push(q);
-    });
-
-    return {
-      id: 'S' + Date.now(),
-      seed: null,
-      startedAt: Date.now(),
-      endedAt: null,
-      questions: questions,
-      cursor: 0
-    };
+    return assemble(slots);
   }
 
   /* ============================== 判分与归因 ============================== */
@@ -769,6 +851,7 @@
   return {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION,
     SESSION_COUNTS: SESSION_COUNTS,
+    DAILY_COUNT: DAILY_COUNT,
     REVIEW_STEPS: REVIEW_STEPS,
     DIFFICULTY: DIFFICULTY,
     mulberry32: mulberry32,

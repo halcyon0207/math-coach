@@ -250,6 +250,21 @@ html, body {
 .caret { width: 2px; height: 24px; background: var(--primary); margin-left: 2px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
 
+/* 错题自述的三个小选项（结果页）：比选项按钮小一号，一行放得下 */
+.self-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 14px;
+}
+.chip.on { border-color: var(--primary); background: var(--soft); color: var(--primary); font-weight: 600; }
+
 .options { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px 30px; }
 .opt {
   appearance: none; cursor: pointer; font-family: inherit;
@@ -516,6 +531,19 @@ html, body {
   color: var(--primary-ink);
   font-weight: 600;
 }
+/* 「今天的数学」：每天一份小份的入口，放首页最上面。
+   左边一条主色竖线，和下面的"练哪个单元""该复习了"区分开。 */
+.card-today { border-left: 3px solid var(--primary); }
+.today-done-line {
+  margin: 2px 0 8px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-weight: 700;
+  font-size: 15px;
+}
+
 /* 题量三档（10 / 15 / 20）。用和单元按钮同一套观感 —— 都是"选一个"，
    孩子不用再学一种新控件。 */
 .count-row { display: flex; gap: 8px; margin: 10px 0 4px; }
