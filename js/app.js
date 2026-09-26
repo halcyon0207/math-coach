@@ -410,7 +410,8 @@
       // 它是"先夯实基础才给难题"这条规则唯一的可见处 —— 看不见的话，
       // 家长会以为系统在随机出题，孩子会以为练习册突然变难了。
       var ceil = E.tierCeiling(state, k.id);
-      var tierTxt = untouched ? '' : (ceil >= 3 ? '已解锁挑战题'
+      var tierTxt = untouched ? '' : (ceil >= 4 ? '已解锁拓展题'
+        : ceil === 3 ? '已解锁挑战题'
         : ceil === 2 ? '已解锁巩固题' : '只出基础题，练稳了才加档');
       // 哪天练的：家长看报告时要能对得上"这星期练了哪几天"
       var lastTxt = (!untouched && st.lastPracticedAt) ? ('上次练：' + fmtDay(st.lastPracticedAt)) : '';
@@ -600,7 +601,7 @@
         '</div>';
     }
 
-    // 难度档徽章（基础 / 巩固 / 挑战）。三档是照着教材和教案的分层给的，
+    // 难度档徽章（基础 / 巩固 / 挑战 / 拓展）。四档是照着教材和教案的分层给的，
     // 巩固和挑战要练到才解锁 —— 所以这一栏同时也是给孩子看的"我练到哪了"。
     var tier = q.diffTier || null;
     var tierChip = tier ? '<span class="badge-tier tier-' + esc(tier.key) + '">' +
@@ -859,6 +860,24 @@
     if (e.pointerType === 'pen') penAt = Date.now();
   }
 
+  // pointercancel: 浏览器可能因为手掌识别、系统手势把当前指针取消掉。
+  // 直接删掉这一笔的话，电容笔还压在屏上、接着画就从断点起了一笔新的 ——
+  // 竖式中间就断了一截。给一个很短的宽限：同一类指针如果很快又落下，
+  // 就接着上一笔画；超过宽限才算真结束。
+  var cancelGrace = {};
+  function cancelStroke(e) {
+    if (!e || e.pointerId == null) return;
+    var st = liveStrokes[e.pointerId];
+    delete liveStrokes[e.pointerId];
+    delete livePen[e.pointerId];
+    if (!st) return;
+    var type = e.pointerType || '';
+    cancelGrace[type] = st;
+    setTimeout(function () {
+      if (cancelGrace[type] === st) cancelGrace[type] = null;
+    }, 150);
+  }
+
   // 落笔的那一下：只点了一个点也要看得见（原来靠整块重画，现在是补画一笔）
   function drawDot(ctx, p) {
     inkBegin(ctx);
@@ -914,6 +933,19 @@
         else if (penLive() || (penAt && Date.now() - penAt < 400)) return;
         if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
         var p = posOf(cv, e);
+        // 如果上一笔刚被 pointercancel 打断（手掌识别 / 系统手势），且是同一类指针，
+        // 就接着上一笔画 —— 断点处连上，竖式不会从中间断成两截。
+        var graceType = isPen ? 'pen' : (e.pointerType || '');
+        var g = cancelGrace[graceType];
+        if (g) {
+          cancelGrace[graceType] = null;
+          liveStrokes[e.pointerId] = g;
+          livePen[e.pointerId] = isPen;
+          g.push(p);
+          drawDot(ctx, p);
+          e.preventDefault();
+          return;
+        }
         var st = [p];
         liveStrokes[e.pointerId] = st;
         livePen[e.pointerId] = isPen;
@@ -943,9 +975,43 @@
       // 不用 pointerleave：笔尖滑到画布外面就被判成"这一笔完了"，
       // 孩子接着画就从那儿断开。已经 setPointerCapture 了，
       // 出了画布 pointermove / pointerup 照样送到这里。
+      // lostpointercapture 不结束笔画：浏览器可能因为系统手势暂时夺走 capture，
+      // 但指针还按着，等它回来 pointermove 会接着画；在这里 endStroke 反而会把线截断。
       cv.addEventListener('pointerup', endStroke);
-      cv.addEventListener('pointercancel', endStroke);
-      cv.addEventListener('lostpointercapture', endStroke);
+      cv.addEventListener('pointercancel', cancelStroke);
+    }
+  }
+
+  // 报告里回放题目草稿的小画布。笔迹是归一化的（0~1），按原始宽高比
+  // 还原到一个固定宽度的小画布上。
+  function setupMiniCanvases() {
+    var list = app._miniReplay || [];
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      var cv = el(it.id);
+      if (!cv || typeof cv.getContext !== 'function') continue;
+      var MAX_W = 280;
+      var ratio = it.cw / it.ch;
+      var w = Math.min(MAX_W, it.cw);
+      var h = w / ratio;
+      cv.style.width = w + 'px';
+      cv.style.height = h + 'px';
+      var dpr = window.devicePixelRatio || 1;
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      var ctx = cv.getContext('2d');
+      if (!ctx) continue;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      inkBegin(ctx);
+      it.strokes.forEach(function (st) {
+        if (!st.length) return;
+        ctx.beginPath();
+        ctx.moveTo(st[0].x * w, st[0].y * h);
+        for (var j = 1; j < st.length; j++) ctx.lineTo(st[j].x * w, st[j].y * h);
+        if (st.length === 1) ctx.lineTo(st[0].x * w + 0.5, st[0].y * h + 0.5);
+        ctx.stroke();
+      });
     }
   }
 
@@ -1303,6 +1369,21 @@
       timeSpentMs: Date.now() - app.questionStartAt
     };
 
+    // 把题目上的草稿笔迹也存下来：家长看报告时，光看"他填的是 35"看不出
+    // 他是怎么算的 —— 竖式、圈画、划线这些草稿才能还原当时的思路。
+    // 笔迹归一化到 0~1，回放时按画布宽高比还原，不同设备上也对得上。
+    var qCv = el('qCanvas');
+    if (qCv && app.strokes && app.strokes.length) {
+      var cw = qCv.clientWidth || 1, ch = qCv.clientHeight || 1;
+      rec.canvasW = cw;
+      rec.canvasH = ch;
+      rec.strokes = app.strokes.map(function (st) {
+        return st.map(function (p) {
+          return { x: p.x / cw, y: p.y / ch };
+        });
+      });
+    }
+
     var out = E.applyResult(app.state, rec);
     app.state = out.state;
     saveState();
@@ -1381,11 +1462,23 @@
   // 统计快照：覆盖写，云端只留每台设备的最新一份。
   // 全量历史就在孩子设备上，没必要再往云端堆一份。
   function reportSnapshot() {
+    // 云端请求有 256KB 上限，草稿笔迹只带最近 50 条的 —— 更早的在家长手机上
+    // 看不到草稿，但题干、答案、对错、错因都还在。
+    var hist = (app.state.history || []).slice(-200);
+    var keepFrom = hist.length - 50;
+    var slim = hist.map(function (h, i) {
+      if (i < keepFrom && h.strokes) {
+        var c = {};
+        for (var k in h) if (h.hasOwnProperty(k) && k !== 'strokes') c[k] = h[k];
+        return c;
+      }
+      return h;
+    });
     return {
       devName: (F && F.sync() && F.sync().name) || '设备',
       ts: Date.now(),
       sessions: (app.state.sessions || []).slice(-100),
-      history: (app.state.history || []).slice(-200),
+      history: slim,
       stats: app.state.stats || {}
     };
   }
@@ -1680,10 +1773,18 @@
     // ---- 每道题的记录（对的也列）----
     // 只列错题的话，家长看不到"他做对了哪些、什么时候做的"，
     // 而报告的价值有一半恰恰在"对的那部分稳不稳"。
-    var detailRows = rangeHist.slice(-60).reverse().map(function (h) {
+    // 带笔迹的题目把草稿也回放出来：竖式、圈画这些能还原孩子当时的思路。
+    app._miniReplay = [];
+    var detailRows = rangeHist.slice(-60).reverse().map(function (h, i) {
       var dts = tagsOf(h).map(function (t) {
         return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
       });
+      var id = 'mmini-' + i;
+      if (h.strokes && h.strokes.length && h.canvasW && h.canvasH) {
+        app._miniReplay.push({
+          id: id, strokes: h.strokes, cw: h.canvasW, ch: h.canvasH
+        });
+      }
       return '<div class="kp-row">' +
         '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
         '<span class="kp-label">' + (h.isCorrect ? '对' : '错') + '</span></div>' +
@@ -1691,7 +1792,9 @@
         '<span>' + esc(fmtTime(h.ts)) + '　' + esc((K.byId(h.kpId) || {}).name || '') + '</span>' +
         '<span>' + (h.answer ? '他填的是 ' + esc(h.answer) : '') +
         (h.isCorrect ? '' : ((h.answer ? '　' : '') + esc(dts.join('、') || '再算一遍试试'))) +
-        '</span></div></div>';
+        '</span></div>' +
+        (h.strokes && h.strokes.length ? '<div class="mini-ink"><canvas id="' + id + '"></canvas></div>' : '') +
+        '</div>';
     }).join('');
 
     return '' +
@@ -1820,6 +1923,8 @@
     root.innerHTML = '<div class="view view-' + app.view + '">' + warn + html + '</div>';
     // 画布是新造出来的，尺寸要重算、笔迹要照着再画一遍
     if (app.view === 'practice') attachCanvas();
+    // 家长报告里每道题的草稿笔迹回放
+    if (app.view === 'parent') setupMiniCanvases();
 
     // 只在"换了一道题 / 换了一个页面"时才回到顶部。
     //

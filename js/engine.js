@@ -175,16 +175,43 @@
     return 0;
   }
 
+  // 这个知识点现在解锁到哪一档（TIERS 按 level 升序，取最后一个解锁的）
+  function openTopTier(m) {
+    var top = null;
+    Knowledge.TIERS.forEach(function (t) {
+      if (Knowledge.tierUnlocked(t, m)) top = t;
+    });
+    return top;
+  }
+
   // 这个知识点现在该出多难的题
+  //
+  // 光"解锁"是不够的 —— 这是孩子说"太简单"的真正原因：
+  // 原来只围着 difficultyBase 打转（连对 +0.12、连错 -0.12），
+  // 于是池子里明明已经放进巩固题、挑战题，中间那七八个名额挑出来的还是基础题，
+  // 只有压轴那一位会去够最难的。他 59 题全对，掌握度早过了 0.9，
+  // 看到的却还是课本例题那个样子 —— 解锁解锁了，出出来的题没跟着走。
+  //
+  // 所以：解锁到哪一档，目标难度就抬进哪一档（抬到那一档区间的偏上处，
+  // 不是顶到上沿，免得整场只剩最难的那一两道）。
   function targetDifficulty(state, kp) {
-    return kp.difficultyBase + difficultyShift(state, kp.id) * DIFFICULTY.STEP;
+    var shift = difficultyShift(state, kp.id);
+    var base = kp.difficultyBase + shift * DIFFICULTY.STEP;
+    var top = openTopTier(masteryOf(state, kp.id));
+    // 连错的时候不抬：那时候该做的是退回去，不是再往上加一层
+    if (top && top.level >= 2 && shift >= 0) {
+      var aim = top.min + Math.min(0.08, (top.max - top.min) / 2);
+      if (base < aim) base = aim;
+    }
+    return base;
   }
 
   /* ============================== 出题 ============================== */
   // 难度分档的门禁：孩子的掌握度没到，高一档的模板就不进池子。
   //
-  // 为什么要"解锁"而不是"随机出难题"：这三档是按教材和教案的分层来的
-  // （基础 = 和例题一样；巩固 = 变式、逆向；挑战 = 两步串联、说理），
+  // 为什么要"解锁"而不是"随机出难题"：这四档是按教材和教案的分层来的
+  // （基础 = 和例题一样；巩固 = 变式、逆向；挑战 = 两步串联、说理；
+  //  拓展 = 条件要自己先理出来，教材里标 ★ 的那几道），
   // 目标始终是先把基础夯实。随机撒难题只会让弱的孩子一直错、
   // 掌握度往下掉，最后连基础题都不敢做。
   //

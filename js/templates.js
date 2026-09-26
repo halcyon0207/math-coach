@@ -115,6 +115,16 @@
     BOUND_OVER: { label: '这一位填大了，会进位', advice: '要看的那一位一到 5 就进 1，近似数就不是题目给的那个万数了。' },
     BOUND_UNDER: { label: '这一位填小了，舍掉后少 1 万', advice: '这一位比 5 小就舍去，前一位不会进 1 —— 求最小的数时不能填得太小。' },
     COPY_APPROX: { label: '把近似数本身当成了答案', advice: '35 万写作 350000，它只是其中一个可能的数。题目要的是最大（或最小）的那一个。' },
+    // ---- 拓展档（教材里标 ★ 的那几道）----
+    // 这几条的共性是"题面里少了一步现成的条件"，所以错也错在"自己整理条件"这一步上，
+    // 不是计算出错 —— 标签跟着这个来分，不要笼统归到"算错了"。
+    HALF_WRONG: { label: '半价（打折那一步）没算对', advice: '先算出半价到底是多少钱，再乘人数。两类人各按各的价，别混在一起。' },
+    CLASS_MIX: { label: '两类人的人数弄混了', advice: '老师和学生不是同一个价。先把两类人各有多少标出来，再各算一摊。' },
+    CLASS_MISS: { label: '只算了一类人', advice: '题目里有两摊（两类人 / 两段路），算完一摊别忘了另一摊，最后要加起来。' },
+    SAME_DIST_MISS: { label: '没抓住"路程不变"这个条件', advice: '去和回走的是同一段路。先用去时的速度×时间把这段路求出来，它就是回来要走的那段。' },
+    MAXMIN_REVERSE: { label: '找成了乘积最小的那个', advice: '先看清楚题目问的是最大还是最小。要最大，就把大的数字往高位放。' },
+    UNBALANCED: { label: '只顾着把三位数堆大', advice: '一个数特别大、另一个特别小，乘出来反而小。两个数要挨得近，乘积才最大。' },
+    PLACE_LOW: { label: '大数字放到了低位上', advice: '数字越大越该往高的数位放（百位、十位）。放在个位上，这个数字就浪费了。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -1855,6 +1865,21 @@
         var total = items.reduce(function (s, it) { return s + it.value; }, 0);
         var ask = spec.ask;
 
+        // "最多的比最少的 2 倍还多多少"这一问要成立，最高那根必须真的大于最低那根的 2 倍。
+        // 随机取到的格数不满足时把这两根拉到两头（用格数范围的两端），
+        // 而不是生成完再挑题 —— 挑剩下的题会越挑越偏。
+        if (ask === 'twice-diff' && items[maxIdx].value <= items[minIdx].value * 2) {
+          items[maxIdx].cells = spec.cellsMax;
+          items[minIdx].cells = spec.cellsMin;
+          items.forEach(function (it) { it.value = it.cells * unitPerCell; });
+          maxIdx = 0; minIdx = 0;   // 拉完之后"最多/最少"可能换了人
+          items.forEach(function (it, i) {
+            if (it.value > items[maxIdx].value) maxIdx = i;
+            if (it.value < items[minIdx].value) minIdx = i;
+          });
+          total = items.reduce(function (s, it) { return s + it.value; }, 0);
+        }
+
         var finalStep;
         if (ask === 'max') {
           finalStep = {
@@ -1898,6 +1923,30 @@
             teach: [
               items.map(function (it) { return it.label + ' ' + it.value; }).join('，'),
               '一共 ' + total + ' 个'
+            ]
+          };
+        } else if (ask === 'twice-diff') {
+          // 拓展档：最多的比最少的 2 倍还多多少。
+          // 它比"相差多少"多出来的不是计算量，是**要把两个关系接起来**：
+          // 先读出一栏、把它翻倍，再拿另一栏去比 —— 而"翻倍的那一栏是最少的那根"
+          // 这句话题里没说，得自己从图上认出来。
+          var big = items[maxIdx], small = items[minIdx];
+          var twice = small.value * 2;
+          var gap = big.value - twice;
+          finalStep = {
+            id: 'final', tier: 0, type: 'number',
+            prompt: '最多的比最少的 2 倍还多多少个？',
+            answer: gap,
+            distractors: dedupeDistractors(gap, [
+              { value: big.value - small.value, tag: 'COMPARE_WRONG' },        // 忘了"2 倍"
+              { value: big.value + twice, tag: 'COMPARE_WRONG' },              // 比多做成加起来
+              { value: big.cells - small.cells * 2, tag: 'READ_VALUE_WRONG' }  // 拿格数当个数
+            ]),
+            hint: '先把最少的那一栏乘 2，再用最多的那一栏减去它。',
+            teach: [
+              '最少的是「' + small.label + '」：' + small.cells + ' 格 × ' + unitPerCell + ' = ' + small.value + '（个）',
+              '它的 2 倍：' + small.value + ' × 2 = ' + twice + '（个）',
+              '最多的是「' + big.label + '」：' + big.value + ' 个，' + big.value + ' − ' + twice + ' = ' + gap + '（个）'
             ]
           };
         } else {
@@ -2034,6 +2083,11 @@
           right = SCALE_CODE.DIV_KK;
           others = [[SCALE_CODE.DIV_K, 'PATTERN_LINEAR'], [SCALE_CODE.SAME, 'PATTERN_BASE']];
           asked = '两个乘数都除以 ' + k + '，积会怎么变？';
+        } else if (mode === 'reverse') {           // 已知变化后的积，倒回去找原来的积
+          refA = a0 * k; refB = b0 * k; askA = a0; askB = b0;
+          right = SCALE_CODE.MUL_KK;
+          others = [[SCALE_CODE.MUL_K, 'PATTERN_LINEAR'], [SCALE_CODE.SAME, 'PATTERN_BASE']];
+          asked = '从原来那个积变到现在这个积，是乘了几回 ' + k + '？';
         } else {                                   // 课堂活动：一乘一除，积不变
           refA = a0; refB = b0 * k; askA = a0 * k; askB = b0;
           right = SCALE_CODE.SAME;
@@ -2088,12 +2142,18 @@
           wrongs.push({ value: ref * k, tag: 'PATTERN_LINEAR' });
           wrongs.push({ value: ref / k, tag: 'PATTERN_DIV' });
         }
+        // 倒着做的时候，错法是"倒不回去"：只除了一回（k）、或者把 k×k 当成 k+k 来除
+        if (mode === 'reverse') {
+          wrongs.push({ value: ref / k, tag: 'PATTERN_LINEAR' });
+          if (ref % (k + k) === 0) wrongs.push({ value: ref / (k + k), tag: 'PATTERN_ADD' });
+        }
 
         var ruleLines = [];
         if (mode === 'single') ruleLines.push('一个乘数乘 ' + k + '，另一个不变 → 积乘 ' + k);
         if (mode === 'both-up') ruleLines.push('两个乘数都乘 ' + k + ' → 积乘 ' + k + '×' + k + ' = ' + (k * k));
         if (mode === 'both-down') ruleLines.push('两个乘数都除以 ' + k + ' → 积除以 ' + k + '，再除以 ' + k);
         if (mode === 'invariant') ruleLines.push('一个乘 ' + k + '、一个除以 ' + k + ' → 一涨一消，积不变');
+        if (mode === 'reverse') ruleLines.push('现在是原来的积乘了 ' + k + '×' + k + ' 得来的 → 倒回去要连除两回');
 
         var finalStep = {
           id: 'final',
@@ -2102,14 +2162,16 @@
           prompt: askA + ' × ' + askB + ' = ?',
           answer: answer,
           distractors: dedupeDistractors(answer, wrongs),
-          hint: '不用重新竖式：看乘数各自变了几回，让 ' + ref + ' 跟着变。',
+          hint: mode === 'reverse'
+            ? '倒回去想：' + ref + ' 是原来的积乘了两回 ' + k + ' 得来的，所以原来的积要连除两回。'
+            : '不用重新竖式：看乘数各自变了几回，让 ' + ref + ' 跟着变。',
           teach: [refA + ' × ' + refB + ' = ' + ref].concat(ruleLines)
             .concat([askA + ' × ' + askB + ' = ' + answer])
         };
 
         return {
-          stem: '找规律，不用重新竖式：' + refA + ' × ' + refB + ' = ' + ref +
-            '，那么 ' + askA + ' × ' + askB + ' = ?',
+          stem: (mode === 'reverse' ? '倒着找规律：' : '找规律，不用重新竖式：') +
+            refA + ' × ' + refB + ' = ' + ref + '，那么 ' + askA + ' × ' + askB + ' = ?',
           steps: [baseStep, scaleStep, finalStep],
           facts: {
             kind: 'product-rule', mode: mode, k: k,
@@ -2473,6 +2535,430 @@
           facts: {
             kind: 'eq-approx', a: A, b: B, w1: w1, w2: w2, lookDigit: d,
             approx: Bn, expect: SENT_OK
+          }
+        };
+      }
+    };
+  }
+
+  /* ==================== 拓展档：教材里标了 ★ 的那几道 ====================
+   *
+   * 这三族是"孩子说太简单"之后补的。它们和上面所有题的区别只有一条：
+   * **题面里少了一步现成的条件**，得自己先把它理出来 ——
+   *   · 两种票价：老师和学生不是一个价，要分两摊（教材 P53 第 12 题）
+   *   · 往返还时间：去和回是同一段路，这个"不变"题里没说（教材 P65 的表格）
+   *   · 组成乘积最大的算式：算式本身得自己排（教材 P53 的思考题）
+   *
+   * 每一族的原型都是本册教材上真有的那一道，不是凭空加码。
+   * 判分一样靠程序算，干扰项一样是错因探针。
+   */
+
+  // 两种票价（教材 P53 第 12 题："3 名老师和 105 名学生，淡季 60 元/人，学生票半价"）
+  //
+  // 难点不在乘法，在"这两摊不是同一个价"。所以干扰项里一定有"两摊都按全价"
+  // （孩子最常见的省事做法）和"只算了其中一摊"—— 它们对应两件不同的事：
+  // 前者是没看清价钱，后者是漏了条件，要讲的话也是两句。
+  function familyTicketTwoPrice(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        // 票价取偶数：半价才是个整数（四年级还没学小数）
+        var price = spec.price(rng) * 2;
+        var half = price / 2;
+        var teachers = spec.teachers(rng);
+        var students = spec.students(rng);
+        var teacherCost = teachers * price;
+        var studentCost = students * half;
+        var total = teacherCost + studentCost;
+
+        return {
+          stem: '门票 ' + price + ' 元/人，学生票半价。' + teachers + ' 名老师和 ' +
+            students + ' 名学生都买门票，一共要多少元？',
+          steps: [
+            {
+              id: 'half', tier: 1, type: 'number',
+              prompt: '学生票每张多少元？',
+              answer: half,
+              distractors: dedupeDistractors(half, [
+                { value: price, tag: 'HALF_WRONG' },      // 忘了半价
+                { value: price * 2, tag: 'HALF_WRONG' }   // 把"半价"写成了两倍
+              ]),
+              hint: '半价就是原价的一半，用原价除以 2。',
+              teach: [price + ' ÷ 2 = ' + half + '（元）—— 这是一张学生票的价钱']
+            },
+            {
+              id: 'teacher', tier: 2, type: 'number',
+              prompt: '老师（按全价）一共要多少元？',
+              answer: teacherCost,
+              distractors: dedupeDistractors(teacherCost, [
+                { value: students * price, tag: 'CLASS_MIX' },  // 拿学生的人数算了全价
+                { value: teachers * half, tag: 'HALF_WRONG' }   // 老师也按半价算了
+              ]),
+              hint: '老师按全价：' + teachers + ' × ' + price + '。',
+              teach: [teachers + ' × ' + price + ' = ' + teacherCost + '（元）']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '两摊加起来，一共要多少元？',
+              answer: total,
+              distractors: dedupeDistractors(total, [
+                { value: (teachers + students) * price, tag: 'HALF_WRONG' },  // 都按全价
+                { value: (teachers + students) * half, tag: 'HALF_WRONG' },   // 都按半价
+                { value: teacherCost, tag: 'CLASS_MISS' },                    // 只算了老师
+                { value: studentCost, tag: 'CLASS_MISS' }                     // 只算了学生
+              ]),
+              hint: '老师那摊 + 学生那摊。学生那摊是 ' + students + ' × ' + half + '。',
+              teach: [
+                teachers + ' × ' + price + ' = ' + teacherCost + '（元）',
+                students + ' × ' + half + ' = ' + studentCost + '（元）',
+                teacherCost + ' + ' + studentCost + ' = ' + total + '（元）'
+              ]
+            }
+          ],
+          facts: {
+            kind: 'ticket-two', price: price, half: half,
+            teachers: teachers, students: students,
+            teacherCost: teacherCost, studentCost: studentCost, expect: total
+          }
+        };
+      }
+    };
+  }
+
+  // 往返（教材 P65 的表格：速度、时间、路程知二求一；P53 第 5 题是同一段关系）
+  //
+  // 关键不在公式，在看出"去和回是同一段路"—— 这句话题里没写。
+  // 所以第一个辅助步问的就是这段路；而"抄去时的时间"单独占一个探针
+  // （COPY_GIVEN）：那不是算错，是压根没意识到速度变了，讲法也不一样。
+  function familyRoundTrip(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var v1 = spec.speed(rng);
+        var t1 = spec.hours(rng);
+        var s = v1 * t1;
+        // 回来的速度取这段路的约数：回来的时间才是整数（四年级不学分数的小时）
+        var cands = [];
+        for (var d = spec.vMin; d <= spec.vMax; d++) {
+          if (d !== v1 && s % d === 0 && s / d !== t1) cands.push(d);
+        }
+        if (!cands.length) cands.push(v1);
+        var v2 = cands[pickInt(rng, 0, cands.length - 1)];
+        var t2 = s / v2;
+
+        return {
+          stem: '一辆车去时每小时行 ' + v1 + ' 千米，行了 ' + t1 + ' 小时。' +
+            '原路返回时每小时行 ' + v2 + ' 千米，返回要多少小时？',
+          steps: [
+            {
+              id: 'dist', tier: 1, type: 'number',
+              prompt: '去时走的这段路是多少千米？',
+              answer: s,
+              distractors: dedupeDistractors(s, [
+                { value: v1 + t1, tag: 'QUANTITY_WRONG' },
+                { value: v2 * t1, tag: 'QUANTITY_WRONG' }   // 拿回来的速度配去时的时间
+              ]),
+              hint: '速度 × 时间 = 路程。去和回是同一段路，这个数两边都要用。',
+              teach: [v1 + ' × ' + t1 + ' = ' + s + '（千米）—— 这也是回来要走的那段路']
+            },
+            {
+              id: 'relation', tier: 2, type: 'choice',
+              prompt: '求"返回要多少小时"，用哪个关系式？',
+              answer: 3,
+              options: shuffle(rng, [
+                { value: 1, label: '速度 × 时间 = 路程', tag: 'RELATION_REVERSE' },
+                { value: 2, label: '路程 ÷ 时间 = 速度', tag: 'RELATION_REVERSE' },
+                { value: 3, label: '路程 ÷ 速度 = 时间', tag: null }
+              ]),
+              hint: '要求的是时间，就用路程 ÷ 速度。注意用的是**返回时**的速度。',
+              teach: ['路程 ÷ 速度 = 时间']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '返回要多少小时？',
+              answer: t2,
+              distractors: dedupeDistractors(t2, [
+                { value: t1, tag: 'COPY_GIVEN' },            // 速度变了还抄去时的时间
+                { value: s * v2, tag: 'DIV_MUL_REVERSE' },   // 该除的做成乘法
+                { value: s - v2, tag: 'QUANTITY_WRONG' }
+              ]),
+              hint: '路程是 ' + s + ' 千米，返回的速度是 ' + v2 + '，用除法。',
+              teach: [
+                '去和回是同一段路：' + s + ' 千米',
+                v2 + ' 千米/时，' + s + ' ÷ ' + v2 + ' = ' + t2 + '（小时）'
+              ]
+            }
+          ],
+          facts: { kind: 'round-trip', v1: v1, t1: t1, v2: v2, s: s, expect: t2 }
+        };
+      }
+    };
+  }
+
+  // 组成乘积最大的算式（教材 P53 的思考题，原题是"用 0、1、2、3、4 五个数字"）
+  //
+  // 为什么它能做成本系统的题：答案不是"感觉"，是**枚举出来的** ——
+  // 五个数字排成"三位数 × 两位数"一共就几十种，程序把它们全乘一遍取最大，
+  // 孩子要做的正是同一件事（方法「大数占高位，两数要挨着」只是让这一步少算几种）。
+  // 所以 facts.expect 一定是那个最大值，测试照着枚举验一遍即可。
+  //
+  // 三个错选项各有教法：挑了最小的（MAXMIN_REVERSE）、把大数字全堆进三位数
+  // （UNBALANCED —— 一个数特别大、另一个特别小，乘积反而小）、随便排的（PLACE_LOW）。
+  function familyBiggestProduct(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        // 五个不同的数字，必须有 0（原题就有 0：0 放哪一位，正是这道题真正的坎）
+        var digits = spec.digits(rng);
+
+        var perms = [];
+        (function walk(used, cur) {
+          if (cur.length === digits.length) { perms.push(cur.slice()); return; }
+          for (var i = 0; i < digits.length; i++) {
+            if (used[i]) continue;
+            used[i] = true;
+            cur.push(digits[i]);
+            walk(used, cur);
+            cur.pop();
+            used[i] = false;
+          }
+        })(digits.map(function () { return false; }), []);
+
+        function three(arr) { return arr[0] * 100 + arr[1] * 10 + arr[2]; }
+        var all = [];
+        perms.forEach(function (p) {
+          // 前三位做三位数、后两位做两位数；两个数的首位都不能是 0
+          if (p[0] === 0 || p[3] === 0) return;
+          var a = three(p), b = p[3] * 10 + p[4];
+          all.push({ a: a, b: b, prod: a * b });
+        });
+        all.sort(function (x, y) { return y.prod - x.prod; });
+
+        var best = all[0];
+        var worst = all[all.length - 1];
+        // "大数字全堆进三位数"：从大到小排，前三个给三位数、后两个给两位数 ——
+        // 这是孩子最直觉的做法，而它往往不是乘积最大的那个
+        var desc = digits.slice().sort(function (x, y) { return y - x; });
+        var greedy = { a: three(desc.slice(0, 3)), b: desc[3] * 10 + desc[4] };
+        greedy.prod = greedy.a * greedy.b;
+        if (greedy.a === best.a && greedy.b === best.b) {
+          greedy = all[Math.min(1, all.length - 1)];   // 这次贪心凑巧就是最优，换一个
+        }
+        var mid = all[Math.floor(all.length / 2)];
+
+        var opts = [];
+        function push(o, tag) {
+          if (opts.some(function (x) { return x.a === o.a && x.b === o.b; })) return;
+          opts.push({ a: o.a, b: o.b, tag: tag });
+        }
+        push(best, null);
+        push(worst, 'MAXMIN_REVERSE');
+        push(greedy, 'UNBALANCED');
+        push(mid, 'PLACE_LOW');
+        while (opts.length < 3 && opts.length < all.length) push(all[opts.length], 'PLACE_LOW');
+
+        var idx = shuffle(rng, opts.map(function (o, i) { return i; }));
+        var answerValue = -1;
+        idx.forEach(function (i, pos) { if (!opts[i].tag) answerValue = pos + 1; });
+
+        return {
+          stem: '用 ' + digits.join('、') + ' 这五个数字组成一个三位数乘两位数的算式' +
+            '（每个数字只能用一次），乘积最大的是下面哪一个？',
+          steps: [
+            {
+              id: 'place', tier: 1, type: 'choice',
+              prompt: '要使乘积最大，这五个数字里最大的那个应该放在哪一位？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '三位数的百位', tag: null },
+                { value: 2, label: '两位数的十位', tag: 'UNBALANCED' },
+                { value: 3, label: '三位数的个位', tag: 'PLACE_LOW' }
+              ]),
+              hint: '百位比十位"值钱"：同一个数字放在百位，比放在十位多出十倍。',
+              teach: ['数字越大越要往高的数位放 —— 百位最值钱，个位最不值钱。']
+            },
+            {
+              id: 'balance', tier: 2, type: 'choice',
+              prompt: '两个算式用的数字一样，哪一类乘积会更大？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '两个数挨得近的（都不太小）', tag: null },
+                { value: 2, label: '三位数尽量大、两位数尽量小', tag: 'UNBALANCED' }
+              ]),
+              hint: '一个特别大、一个特别小，乘出来反而小 —— 两个数要挨得近。',
+              teach: ['同样的数字，两个数挨得近的那个乘积更大：不要只顾着把三位数堆大。']
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '选乘积最大的那个算式：',
+              answer: answerValue,
+              options: idx.map(function (i, pos) {
+                return {
+                  value: pos + 1,
+                  label: opts[i].a + ' × ' + opts[i].b,
+                  tag: opts[i].tag
+                };
+              }),
+              hint: '不放心就把几个候选都乘一遍比一比 —— 这道题的答案本来就是比出来的。',
+              teach: [
+                '最大的数字放百位，两个数还要挨得近',
+                best.a + ' × ' + best.b + ' = ' + best.prod + '，这里面它是最大的'
+              ]
+            }
+          ],
+          facts: {
+            kind: 'biggest-product', digits: digits.slice(),
+            bestA: best.a, bestB: best.b, worstA: worst.a, worstB: worst.b,
+            expect: best.prod
+          }
+        };
+      }
+    };
+  }
+
+  // 近似数与原数最多相差多少（教材 P17 求近似数的再往下走一层）
+  //
+  // "省略万位后面的尾数"之后，原数和近似数最多差多少？答案就是半个万 —— 5000。
+  // 难在**两边都要想到**：往上最多到 354999（差 4999），往下最多到 345000（差正好 5000）。
+  // 只想一边就会答 4999，所以 GAP_ONE_SIDE 是这道题最主要的探针。
+  function familyApproxGap(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var unitName = spec.unitName;
+        var unitPow = spec.unitPow;
+        var w = spec.w(rng);                  // 近似数是多少万（亿）
+        var half = unitPow / 2;               // 半个单位 —— 就是"最多相差多少"
+        var exact = w * unitPow;
+        var maxNum = exact + half - 1;        // 往上最多到这儿
+        var minNum = exact - half;            // 往下最多到这儿
+
+        return {
+          stem: '一个数省略' + spec.tailName + '后面的尾数后约是 ' + w + ' ' + unitName +
+            '，这个数与 ' + w + ' ' + unitName + '最多相差多少？',
+          steps: [
+            {
+              id: 'max', tier: 1, type: 'number',
+              prompt: '这个数最大是多少？（还约等于 ' + w + ' ' + unitName + '）',
+              answer: maxNum,
+              distractors: dedupeDistractors(maxNum, [
+                { value: exact + half, tag: 'BOUND_OVER' },           // 再大 1 就要进上去了
+                { value: exact + half * 10 - 1, tag: 'WRONG_DIGIT' }  // 数位看错了一级
+              ]),
+              hint: '要"舍"掉才得到 ' + w + ' ' + unitName + '：那一位最大能填几？后面几位都填 9。',
+              teach: ['最大是 ' + maxNum + '：再大 1 就要进上去，近似数就不是 ' + w + ' ' + unitName + ' 了']
+            },
+            {
+              id: 'min', tier: 2, type: 'number',
+              prompt: '这个数最小是多少？',
+              answer: minNum,
+              distractors: dedupeDistractors(minNum, [
+                { value: minNum - 1, tag: 'BOUND_UNDER' },        // 再小 1 就舍回上一个单位了
+                { value: exact - half / 10, tag: 'WRONG_DIGIT' }  // 数位看错了一级
+              ]),
+              hint: '要"进"上来才得到 ' + w + ' ' + unitName + '：那一位最小能填几？',
+              teach: ['最小是 ' + minNum + '：再小 1 就只能舍成 ' + (w - 1) + ' ' + unitName + ' 了']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '这个数与 ' + w + ' ' + unitName + '最多相差多少？',
+              answer: half,
+              distractors: dedupeDistractors(half, [
+                { value: half - 1, tag: 'GAP_ONE_SIDE' },   // 只想到了往大那一头
+                { value: half * 10, tag: 'WRONG_DIGIT' },   // 数位错了一级
+                { value: exact, tag: 'COPY_APPROX' }        // 把近似数本身抄上来了
+              ]),
+              hint: '往上（' + maxNum + '）差 ' + (half - 1) + '，往下（' + minNum + '）差 ' +
+                half + ' —— 两边都要看，取大的那个。',
+              teach: [
+                '往下最多差：' + exact + ' − ' + minNum + ' = ' + half,
+                '往上最多差：' + maxNum + ' − ' + exact + ' = ' + (half - 1),
+                '两边比一比，最多相差 ' + half
+              ]
+            }
+          ],
+          facts: {
+            kind: 'approx-gap', unitName: unitName, unitPow: unitPow, w: w,
+            maxNum: maxNum, minNum: minNum, expect: half
+          }
+        };
+      }
+    };
+  }
+
+  // 一个整角分成三块（教材 P34 角的计算：课本上是分成两块，这里多一块）
+  //
+  // 多一块不是加计算量，是**中间那一步得自己造出来**：
+  // 课本那道是"整角 − 已知的一块"，这里是"先把已知的两块合起来，再一起减"。
+  // 所以第一根探针是 ADD_NOT_SUB（三块直接加起来），它是这一类最典型的错法。
+  function familyAngleSplitThree(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var whole = spec.whole;                 // 180（平角）/ 360（周角）
+        var a = spec.a(rng), b = spec.b(rng);
+        // 第三块要留够（太小就没有"算"的必要）；重取几次仍不合适就收着用
+        for (var i = 0; i < 50 && a + b > whole - 20; i++) {
+          a = spec.a(rng);
+          b = spec.b(rng);
+        }
+        var sumAB = a + b;
+        var c = whole - sumAB;
+        var wholeName = whole === 180 ? '平角' : '周角';
+
+        return {
+          stem: '一个' + wholeName + '被分成三个角，其中两个分别是 ' + a + '° 和 ' +
+            b + '°，第三个角是多少度？',
+          steps: [
+            {
+              // 先认整角：这一步放最前面，和课本那道"整角分成两块"是同一个开头
+              id: 'whole', tier: 2, type: 'choice',
+              prompt: '这个整角一共是多少度？',
+              answer: whole,
+              options: shuffle(rng, [
+                { value: 180, label: '180°（平角）', tag: whole === 180 ? null : 'WHOLE_ANGLE_WRONG' },
+                { value: 360, label: '360°（周角）', tag: whole === 360 ? null : 'WHOLE_ANGLE_WRONG' },
+                { value: 90, label: '90°（直角）', tag: 'WHOLE_ANGLE_WRONG' }
+              ]),
+              // 提示里不许出现度数 —— 那等于把答案念出来，孩子不用想了
+              hint: '先看清楚题目说的是平角还是周角：转半周是平角，转一整圈才是周角。',
+              teach: [wholeName + '是 ' + whole + '°']
+            },
+            {
+              id: 'sum', tier: 1, type: 'number',
+              prompt: '已知的两块一共多少度？',
+              answer: sumAB,
+              distractors: dedupeDistractors(sumAB, [
+                { value: a + b + 10, tag: 'PART_SUM' },
+                { value: Math.abs(a - b), tag: 'PART_SUM' }
+              ]),
+              hint: '先把已知的这两块加起来 —— 减的时候是一起减，不是一块一块减。',
+              teach: [a + '° + ' + b + '° = ' + sumAB + '°']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '第三个角是多少度？',
+              answer: c,
+              distractors: dedupeDistractors(c, [
+                { value: whole + sumAB, tag: 'ADD_NOT_SUB' },                             // 三块直接加起来
+                { value: sumAB, tag: 'ADD_NOT_SUB' },                                     // 停在"两块之和"
+                { value: (whole === 180 ? 360 : 180) - sumAB, tag: 'WHOLE_ANGLE_WRONG' }, // 整角认错了
+                { value: c + 10, tag: 'SUB_CALC' }
+              ]),
+              hint: '用整角 ' + whole + '° 减去刚才加出来的 ' + sumAB + '°。',
+              teach: [a + '° + ' + b + '° = ' + sumAB + '°', whole + '° − ' + sumAB + '° = ' + c + '°']
+            }
+          ],
+          facts: {
+            // x / y 沿用课本那道"整角分成两块"的字段名（x 是已知的那块），
+            // 这样"题干必须带已知角的度数"那条测试也管得住这一道
+            kind: 'angle-split', whole: whole, x: a, y: b, a: a, b: b,
+            sumAB: sumAB, expect: c
           }
         };
       }
@@ -3007,6 +3493,88 @@
       shape: '平角是几个直角（只考这一对）', method: 'M-WHOLE-ANGLE',
       big: 1, small: 2
     },
+    /* ------------------------------------------------------------------
+       拓展档（第四档）：孩子练了 6 场、59 题全对，原话是"太简单"，
+       而那时候最深的一道才 0.68 —— 天花板就在那儿，练得再好也只能见到它。
+       这四道是教材自己留在那儿的那层（P53 第 12 题 / P53 思考题 / P65 表格 /
+       P52 例 1 倒着读），不是把题改难。解锁线见 knowledge.js 的 TIERS。
+       ------------------------------------------------------------------ */
+    {
+      family: familyTicketTwoPrice, id: 'T-0501-E', kp: 'M4A-05-01', difficulty: 0.80,
+      shape: '两种票价：老师全价、学生半价', method: 'M-TWO-CLASS',
+      price: function (rng) { return pickInt(rng, 15, 45); },      // 乘 2 才是票价，保证半价是整数
+      teachers: function (rng) { return pickInt(rng, 2, 5); },
+      students: function (rng) { return pickInt(rng, 40, 120); }
+    },
+    {
+      family: familyRoundTrip, id: 'T-0502-E', kp: 'M4A-05-02', difficulty: 0.78,
+      shape: '往返：去和回是同一段路', method: 'M-SAME-DIST',
+      // 去时的速度取**偶数**：那么"它的一半"一定是这段路的约数，
+      // 也就一定是返回速度的一个候选 —— 返回的小时数因此永远保证是整数，
+      // 不用生成完再挑题（挑剩下的题会越挑越偏）。
+      speed: function (rng) { return pickInt(rng, 20, 40) * 2; },
+      hours: function (rng) { return pickInt(rng, 2, 6); },
+      vMin: 20, vMax: 150    // 返回速度的范围（取路程的约数，回来才是整数小时）
+    },
+    {
+      // 教材 P53 的思考题（原题：用 0、1、2、3、4 五个数字）。
+      // 数字里一定带 0 —— 0 放哪一位才是这道题真正的坎；其余四个从 2~9 里取，
+      // 免得几个数字挨得太近（那样"最大"和"次大"只差一点点，比不出东西）。
+      family: familyBiggestProduct, id: 'T-0404-E', kp: 'M4A-04-04', difficulty: 0.85,
+      shape: '五个数字组成乘积最大的算式', method: 'M-BIGGEST',
+      digits: function (rng) {
+        var rest = [];
+        while (rest.length < 4) {
+          var d = pickInt(rng, 2, 9);
+          if (rest.indexOf(d) < 0) rest.push(d);
+        }
+        return [0].concat(rest);
+      }
+    },
+    {
+      // P52 例 1 那张表倒着读：已知变化后的积，求原来那道。
+      // 正着是"乘两回"，倒着就要"除两回" —— 同一个规律，方向反了就是另一层。
+      family: familyProductRule, id: 'T-0405-E', kp: 'M4A-04-05', difficulty: 0.78,
+      shape: '已知变化后的积，倒回去求原来那道', method: 'M-PATTERN-SCALE',
+      mode: 'reverse',
+      k: function (rng) { return pickInt(rng, 2, 4); },
+      aCore: function (rng) { return pickCore(rng, 12, 40); },
+      bCore: function (rng) { return pickCore(rng, 12, 40); }
+    },
+    {
+      // "约是 35 万"这个数和 35 万最多差多少 —— 求近似数那一课的再下一层。
+      // 这个孩子第一单元练得最多（01-05 / 01-06 共 30 题全对），
+      // 而原来这一知识点最深的一道就是反推最大/最小（0.68），天花板在那儿。
+      family: familyApproxGap, id: 'T-0106-I', kp: 'M4A-01-06', difficulty: 0.82,
+      shape: '近似数与原数最多相差多少', method: 'M-LOOK-NEXT',
+      unitName: '万', unitPow: 10000, tailName: '万位',
+      w: function (rng) { return pickInt(rng, 12, 90); }
+    },
+    {
+      // 课本上角的计算是"整角分成两块"，这里分成三块：
+      // 多出来的不是计算量，是"先把两块合起来再一起减"这一步要自己造出来。
+      family: familyAngleSplitThree, id: 'T-0203-E', kp: 'M4A-02-03', difficulty: 0.74,
+      shape: '平角分成三块，已知两块求第三块', method: 'M-WHOLE-ANGLE',
+      whole: 180,
+      a: function (rng) { return pickInt(rng, 20, 70); },
+      b: function (rng) { return pickInt(rng, 20, 70); }
+    },
+    {
+      family: familyAngleSplitThree, id: 'T-0203-F', kp: 'M4A-02-03', difficulty: 0.80,
+      shape: '周角分成三块，已知两块求第三块', method: 'M-WHOLE-ANGLE',
+      whole: 360,
+      a: function (rng) { return pickInt(rng, 60, 140); },
+      b: function (rng) { return pickInt(rng, 60, 140); }
+    },
+    {
+      // 读图那一课的再一层：不是"相差多少"，而是"最多的比最少的 2 倍还多多少" ——
+      // "翻倍的那一栏是最少的那根"这句话图上没写，得自己认出来。
+      family: familyBarChart, id: 'T-0701-E', kp: 'M4A-07-01', difficulty: 0.76,
+      shape: '读条形图：最多的比最少的 2 倍还多多少', method: 'M-READ-CHART',
+      ask: 'twice-diff', itemCount: 5, cellsMin: 1, cellsMax: 9,
+      unitPerCell: function (rng) { return pickInt(rng, 2, 5); }
+    },
+
     {
       // 教后反思点名的易错：会把"改写"和"求近似数"混着用符号。
       // 难点不在算（两个结果都在前两问里算过了），在"改完之后还是不是同一个数"。
