@@ -16,7 +16,12 @@
 })(typeof self !== 'undefined' ? self : this, function (Knowledge, Templates) {
   'use strict';
 
-  var QUESTIONS_PER_SESSION = 10;
+  var QUESTIONS_PER_SESSION = 10;   // 不传题量时的兜底值
+
+  // 首页给的三档题量。家长的原话是"一个单元练一次才 10 道题，是不是太少了"——
+  // 10 道的时候，一个单元的知识点还没轮完就该收尾了，题型也铺不开。
+  // 所以多给一档更长的，并且把默认值挪到 15（见 store.js 的 defaultState）。
+  var SESSION_COUNTS = [10, 15, 20];
 
   /* ============================== 间隔复习 ============================== */
   // 答对就往后推一档，答错退回第一天。
@@ -383,7 +388,9 @@
   }
 
   function buildSession(state, rng, count, unitFilter) {
-    count = count || QUESTIONS_PER_SESSION;
+    // 题量夹在合理区间里：短于 6 道时热身（固定 2 道）就占了三分之一，
+    // 长于 30 道孩子坐不住，而且错题复习的名额会被摊薄。存坏了的值在这里挡住。
+    count = Math.max(6, Math.min(30, count || QUESTIONS_PER_SESSION));
     // 按单元出题：只在这个单元的知识点里组卷。
     // 传了不存在的单元名时别让整场崩掉，退回全部。
     var kps = Knowledge.implemented().filter(function (k) {
@@ -761,6 +768,7 @@
 
   return {
     QUESTIONS_PER_SESSION: QUESTIONS_PER_SESSION,
+    SESSION_COUNTS: SESSION_COUNTS,
     REVIEW_STEPS: REVIEW_STEPS,
     DIFFICULTY: DIFFICULTY,
     mulberry32: mulberry32,

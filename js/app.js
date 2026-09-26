@@ -258,6 +258,7 @@
     var state = app.state;
     var practiced = state.sessions.length;
     var unit = state.unit || 'all';
+    var count = state.count || E.QUESTIONS_PER_SESSION;
 
     // ---------- 练哪个单元 ----------
     // 按单元出题：一次只练一个单元，混在一起孩子容易乱，
@@ -354,8 +355,17 @@
       draftCard() +
 
       '<div class="card card-cta">' +
-      '<div class="cta-line">练 10 题，大约 10 分钟</div>' +
+      '<div class="cta-line">练 ' + count + ' 题，大约 ' + count + ' 分钟</div>' +
       '<div class="cta-sub">' + esc(lastLine) + '。本次范围：' + esc(unitName) + '，前两道是热身。</div>' +
+      // 题量让孩子（或家长）自己挑：注意力短的日子 10 道，状态好就 20 道。
+      // 家长的原话是"一个单元练一次才 10 道题，是不是太少了"——
+      // 那就把长度交出去，默认落到 15。
+      '<div class="count-row">' +
+      E.SESSION_COUNTS.map(function (c) {
+        return '<button class="count-btn' + (c === count ? ' on' : '') +
+          '" data-act="count" data-c="' + c + '">' + c + ' 题</button>';
+      }).join('') +
+      '</div>' +
       '<button class="btn btn-primary btn-lg" data-act="start">开始练习</button>' +
       // 家长和孩子都会问"这一场和上一场什么关系"。规则摆在按钮下面，不用去别处找。
       '<p class="card-note">和刚做过的那一场不撞题型：练过的题型这场换成别的，' +
@@ -1164,7 +1174,8 @@
   function startSession() {
     var seed = E.randomSeed();
     var rng = E.mulberry32(seed);
-    app.session = E.buildSession(app.state, rng, E.QUESTIONS_PER_SESSION, app.state.unit);
+    // 题量由首页那个"10 / 15 / 20"决定（store 里默认 15）
+    app.session = E.buildSession(app.state, rng, app.state.count, app.state.unit);
     app.session.seed = seed;
     app.cursor = 0;
     app.results = [];
@@ -2079,6 +2090,16 @@
     if (act === 'unit') {
       app.state.unit = t.getAttribute('data-u') || 'all';
       saveState();
+      return render();
+    }
+    // 这一场练几道。只认 E.SESSION_COUNTS 里的档位 —— 别处塞进来一个
+    // 999 也不该让组卷去跑一场两小时的练习。
+    if (act === 'count') {
+      var want = parseInt(t.getAttribute('data-c'), 10);
+      if (E.SESSION_COUNTS.indexOf(want) >= 0) {
+        app.state.count = want;
+        saveState();
+      }
       return render();
     }
     // 导出和清空都只在口令门后面才认。孩子就算把按钮 HTML 印出来点了，

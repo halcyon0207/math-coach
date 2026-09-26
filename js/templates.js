@@ -2965,6 +2965,208 @@
     };
   }
 
+  /* ==================== 题型偏少的三个知识点，各补一道 ====================
+   *
+   * 家长说"题目类型也比较单一"。查了一遍每个知识点的模板数，最少的是
+   * 06-02 正方形面积（2 个）、04-03 中间有 0（3 个）、05-03 归一归总（3 个）、
+   * 06-01 长方形面积（3 个）。题量提到 15/20 之后，按单元练时会明显撞题型 ——
+   * 同一个考法在一场里出现两三遍，孩子当然觉得"就这几种"。
+   *
+   * 这里补的三道都是**把两个知识点接起来**的两步题（周长→面积、面积→总产量、
+   * 两次归一），答案照旧由程序算，干扰项照旧是错因探针。
+   */
+
+  // 正方形：已知周长求面积（教材 P71 面积 + P69 周长，两步接起来）
+  //
+  // 这道题的坎只有一个：**周长 ÷ 4 才是边长**。孩子最容易把长方形那套搬过来
+  // 除以 2，或者干脆拿周长当边长 —— 所以第一根探针是 SIDE_SQUARE_CONFUSE。
+  function familySquareFromPerimeter(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var s = spec.side(rng);
+        var P = 4 * s;
+        var area = s * s;
+
+        return {
+          stem: '一个正方形的周长是 ' + P + ' 厘米，它的面积是多少平方厘米？',
+          steps: [
+            {
+              id: 'side', tier: 1, type: 'number',
+              prompt: '这个正方形的边长是多少厘米？',
+              answer: s,
+              distractors: dedupeDistractors(s, [
+                { value: P / 2, tag: 'SIDE_SQUARE_CONFUSE' },   // 拿长方形那套除以 2
+                { value: P, tag: 'COPY_GIVEN' }                 // 周长直接当边长
+              ]),
+              hint: '正方形的四条边一样长，周长就是四条边加起来。',
+              teach: ['周长 ÷ 4 = 边长：' + P + ' ÷ 4 = ' + s + '（厘米）']
+            },
+            {
+              id: 'formula', tier: 2, type: 'choice',
+              prompt: '求面积用哪个式子？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '边长 × 边长', tag: null },
+                { value: 2, label: '边长 × 4', tag: 'AREA_PERIMETER' },
+                { value: 3, label: '周长 × 周长', tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '边长 × 4 得到的是周长，不是面积。',
+              teach: ['正方形的面积 = 边长 × 边长']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '面积是多少平方厘米？',
+              answer: area,
+              distractors: dedupeDistractors(area, [
+                { value: P * P, tag: 'AREA_PERIMETER' },   // 拿周长当边长
+                { value: s * 4, tag: 'AREA_PERIMETER' },   // 算成了周长
+                { value: P, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '边长算出来是 ' + s + ' 厘米，面积就是边长乘边长。',
+              teach: [s + ' × ' + s + ' = ' + area + '（平方厘米）']
+            }
+          ],
+          facts: { kind: 'square-from-perimeter', P: P, s: s, expect: area }
+        };
+      }
+    };
+  }
+
+  // 长方形：先求面积，再乘"每平方米产多少"（教材 P69 面积的应用）
+  //
+  // 两步里哪一步都可能错，而且错法不同：把周长当面积算（AREA_PERIMETER）、
+  // 算完面积忘了乘每平方米的产量（COPY_GIVEN）。所以两个探针都要在。
+  function familyAreaRate(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var L = spec.long(rng), W = spec.wide(rng), rate = spec.rate(rng);
+        var area = L * W;
+        var per = 2 * (L + W);
+        var total = area * rate;
+
+        return {
+          stem: '一块长方形菜地长 ' + L + ' 米、宽 ' + W + ' 米。每平方米收白菜 ' +
+            rate + ' 千克，这块地一共收白菜多少千克？',
+          steps: [
+            {
+              id: 'area', tier: 1, type: 'number',
+              prompt: '这块菜地的面积是多少平方米？',
+              answer: area,
+              distractors: dedupeDistractors(area, [
+                { value: per, tag: 'AREA_PERIMETER' },
+                { value: L + W, tag: 'QUANTITY_WRONG' }
+              ]),
+              hint: '长 × 宽才是面积；' + L + ' + ' + W + ' 再乘 2 那是周长。',
+              teach: [L + ' × ' + W + ' = ' + area + '（平方米）']
+            },
+            {
+              id: 'what', tier: 2, type: 'choice',
+              prompt: '要求"一共收多少千克"，得先求什么？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '菜地的面积', tag: null },
+                { value: 2, label: '菜地的周长', tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '"每平方米产多少"是按面积算的，不是按一圈的长度。',
+              teach: ['每平方米的产量要乘面积：面积 × 每平方米的产量']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '一共收白菜多少千克？',
+              answer: total,
+              distractors: dedupeDistractors(total, [
+                { value: per * rate, tag: 'AREA_PERIMETER' },   // 用周长去乘
+                { value: area, tag: 'COPY_GIVEN' }              // 停在面积那一步
+              ]),
+              hint: '面积是 ' + area + ' 平方米，每平方米 ' + rate + ' 千克，再乘一次。',
+              teach: [
+                '面积：' + L + ' × ' + W + ' = ' + area + '（平方米）',
+                area + ' × ' + rate + ' = ' + total + '（千克）'
+              ]
+            }
+          ],
+          facts: { kind: 'area-rate', L: L, W: W, rate: rate, area: area, expect: total }
+        };
+      }
+    };
+  }
+
+  // 双归一：两台机器一起算（教材 P64 归一问题的进阶）
+  //
+  // 普通归一只要除一次；这里"几台机器"和"几小时"两层都要除掉。
+  // 最常见的错法就是只除一个条件就交卷 —— 所以 NO_UNIT_STEP 占两根探针：
+  // 只除以台数、只除以小时数，是两个数，也是两句话。
+  function familyUnitDouble(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var machines = spec.machines(rng);
+        var hours = spec.hours(rng);
+        // 台数和小时数不能撞上：相等时"只除以台数"和"只除以小时数"是同一个数，
+        // 两根探针并成一根，孩子到底错在哪边就分不出来了
+        for (var i = 0; i < 30 && hours === machines; i++) hours = spec.hours(rng);
+        var per = spec.per(rng);
+        var total = machines * hours * per;
+        var allPerHour = machines * per;   // 全部机器 1 小时的产量
+
+        return {
+          stem: machines + ' 台机器 ' + hours + ' 小时一共加工 ' + total +
+            ' 个零件。平均 1 台机器 1 小时加工多少个零件？',
+          steps: [
+            {
+              id: 'per-hour', tier: 1, type: 'number',
+              prompt: machines + ' 台机器 1 小时一共加工多少个零件？',
+              answer: allPerHour,
+              distractors: dedupeDistractors(allPerHour, [
+                { value: total / machines, tag: 'NO_UNIT_STEP' },   // 除错了那一边
+                { value: total, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '先只看"时间"这一层：把 ' + hours + ' 小时除掉。',
+              teach: [total + ' ÷ ' + hours + ' = ' + allPerHour + '（个）']
+            },
+            {
+              id: 'next', tier: 2, type: 'choice',
+              prompt: '接下来还要除以几？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '机器的台数', tag: null },
+                { value: 2, label: '刚才除过的小时数', tag: 'NO_UNIT_STEP' }
+              ]),
+              hint: '要的是"每台机器"的量，剩下的那一层就是台数。',
+              teach: ['时间除掉了，再除台数，才落到"每台每小时"']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '1 台机器 1 小时加工多少个零件？',
+              answer: per,
+              distractors: dedupeDistractors(per, [
+                { value: total / machines, tag: 'NO_UNIT_STEP' },   // 只除了台数
+                { value: total / hours, tag: 'NO_UNIT_STEP' },      // 只除了小时
+                { value: allPerHour, tag: 'COPY_GIVEN' }            // 停在中间那一步
+              ]),
+              hint: '两层都要除：先除小时数，再除台数。',
+              teach: [
+                total + ' ÷ ' + hours + ' = ' + allPerHour + '（' + machines + ' 台 1 小时的）',
+                allPerHour + ' ÷ ' + machines + ' = ' + per + '（1 台 1 小时的）'
+              ]
+            }
+          ],
+          facts: {
+            // 和这一课其他题同一个族（unit-rate），只是多一层：mode = 'double'。
+            // 测试那边按 mode 分派检查，双归一的检查也写在一起。
+            kind: 'unit-rate', mode: 'double',
+            machines: machines, hours: hours, total: total, expect: per
+          }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -3310,6 +3512,15 @@
       long: function (rng) { return pickInt(rng, 6, 18); },
       wide: function (rng) { return pickInt(rng, 3, 9); }
     },
+    {
+      // 面积算完还要乘"每平方米产多少" —— 面积这一课在真实题目里
+      // 几乎都是这样用的，单独算一次长乘宽反而不常见。
+      family: familyAreaRate, id: 'T-0601-D', kp: 'M4A-06-01', difficulty: 0.60,
+      shape: '先求面积，再乘每平方米的产量', method: 'M-AREA-RECT',
+      long: function (rng) { return pickInt(rng, 12, 35); },
+      wide: function (rng) { return pickInt(rng, 6, 14); },
+      rate: function (rng) { return pickInt(rng, 3, 9); }
+    },
 
     // ---- 06-02 第六单元 正方形面积 ----
     {
@@ -3321,6 +3532,13 @@
       family: familySquareArea, id: 'T-0602-B', kp: 'M4A-06-02', difficulty: 0.50,
       shape: '已知边长求正方形面积（笔算）', method: 'M-AREA-RECT',
       side: function (rng) { return pickInt(rng, 10, 25); }
+    },
+    {
+      // 周长 → 边长 → 面积，两步。四上这两个知识点本来就是分开学的，
+      // 接起来用一次才算真会（也顺带补上"周长和面积分不清"这个老坑）。
+      family: familySquareFromPerimeter, id: 'T-0602-C', kp: 'M4A-06-02', difficulty: 0.58,
+      shape: '已知周长求正方形面积', method: 'M-AREA-RECT',
+      side: function (rng) { return pickInt(rng, 4, 20); }
     },
 
     // ---- 06-04 第六单元 面积单位换算 ----
@@ -3428,6 +3646,15 @@
       mode: 'total',
       q: function (rng) { return pickInt(rng, 8, 18); },
       rooms: function (rng) { return pickInt(rng, 4, 9); }
+    },
+    {
+      // 双归一：台数和小时数两层都要除掉。归一这一课原来只有"除一次"的形态，
+      // 连着几场都是同一道除法，孩子当然觉得题型少。
+      family: familyUnitDouble, id: 'T-0503-D', kp: 'M4A-05-03', difficulty: 0.66,
+      shape: '双归一：几台机器几小时，求 1 台 1 小时', method: 'M-UNIT-RATE',
+      machines: function (rng) { return pickInt(rng, 2, 6); },
+      hours: function (rng) { return pickInt(rng, 2, 6); },
+      per: function (rng) { return pickInt(rng, 10, 40); }
     },
     {
       family: familyUnitRate, id: 'T-0503-C', kp: 'M4A-05-03', difficulty: 0.62,

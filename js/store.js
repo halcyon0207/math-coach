@@ -30,6 +30,10 @@
       history: [],    // 每一条作答
       sessions: [],   // 每次练习的汇总
       unit: 'all',    // 这次练哪个单元（'all' = 全部混着来）
+      // 这一场练几道。10 道太短（家长的原话："一个单元练一次才 10 道题"）——
+      // 题少的时候，一个单元的知识点还没轮完就该收尾了，题型也铺不开。
+      // 练熟的孩子可以调到 20，注意力短的日子调回 10。
+      count: 15,
       passcode: '',   // 家长口令，空 = 还没设置。挡住的是"孩子自己进去看报告、清空数据"
       // 没做完的那一场：种子 + 做到第几题 + 每步的对错 + 笔迹。
       // 练到一半被打断是常态，下次进同一台设备要能接着做（见 app.js 的 saveDraft）。
@@ -44,6 +48,9 @@
   function obj(v, dflt) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : dflt; }
   function arr(v, dflt) { return Array.isArray(v) ? v : dflt; }
   function str(v, dflt) { return typeof v === 'string' && v ? v : dflt; }
+  // 题量只认正的有限数：存进来一个 "15"（字符串）或 0，都退回默认值，
+  // 不然组卷那边会拿到 count=0 出一场空练习
+  function posNum(v, dflt) { return (typeof v === 'number' && isFinite(v) && v > 0) ? v : dflt; }
 
   function load() {
     loadFailed = false;
@@ -62,6 +69,7 @@
         history: arr(s.history, []),
         sessions: arr(s.sessions, []),
         unit: str(s.unit, 'all'),
+        count: posNum(s.count, d.count),
         passcode: str(s.passcode, ''),
         draft: obj(s.draft, null),
         sync: obj(s.sync, { on: false, fam: '', dev: '', name: '', lastAt: 0 })

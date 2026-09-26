@@ -516,6 +516,25 @@ html, body {
   color: var(--primary-ink);
   font-weight: 600;
 }
+/* 题量三档（10 / 15 / 20）。用和单元按钮同一套观感 —— 都是"选一个"，
+   孩子不用再学一种新控件。 */
+.count-row { display: flex; gap: 8px; margin: 10px 0 4px; }
+.count-btn {
+  flex: 1;
+  padding: 9px 6px;
+  font-family: inherit;
+  font-size: 14.5px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+}
+.count-btn.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
 .unit-block { margin-top: 14px; }
 .unit-block:first-child { margin-top: 0; }
 .unit-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
