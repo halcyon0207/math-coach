@@ -106,21 +106,42 @@
     return (typeof AbortController === 'function') ? new AbortController() : null;
   }
 
+  // 明确离线就别发（注意反过来不成立：连上了 WiFi 也可能没有互联网，那种照发）。
+  // 这一层只为省掉"明知道没网还干等一个超时周期" —— 那段时间界面上什么都没有。
+  function offline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
   // 所有请求都从这里走：超时就放弃（不阻塞），失败只记一句状态
   function post(body) {
     body.v = API_VERSION;
     body.app = APP;   // 语文 / 数学共用同一个家庭码，靠这个隔开两边的数据
+    if (offline()) return Promise.reject(new Error('现在没网'));
+
     var ctl = setTimeoutFetch();
     var opts = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     };
-    if (ctl) {
-      opts.signal = ctl.signal;
-      setTimeout(function () { try { ctl.abort(); } catch (e) {} }, TIMEOUT);
-    }
-    return fetch(API_BASE, opts).then(function (r) {
+    if (ctl) opts.signal = ctl.signal;
+
+    // 超时必须自己兜住，不能指望 AbortController：不支持它的浏览器压根没有超时，
+    // 那种情况下这个 Promise 永远不返回，界面就一直停在"正在提交…"。
+    // 用 Promise.race 加一道：到点一定给调用方一个结果（失败也是结果）。
+    var req = fetch(API_BASE, opts);
+    var timer = null;
+    var guard = new Promise(function (_, rej) {
+      timer = setTimeout(function () {
+        try { if (ctl) ctl.abort(); } catch (e) {}
+        rej(new Error('超时'));
+      }, TIMEOUT);
+    });
+
+    function done(r) { clearTimeout(timer); return r; }
+    function fail(e) { clearTimeout(timer); throw e; }
+
+    return Promise.race([req, guard]).then(done, fail).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (j) {
