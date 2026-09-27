@@ -188,9 +188,18 @@
   var MIN_PT_DIST = 0.02;       // 格宽的 2%（约 2px），比这更密的点回放时看不出来
   var MAX_PTS_PER_STROKE = 12;  // 单笔最多留这么多点，一笔的形状还在
 
+  // 点坐标打包成 [u, v] 整数百分比（0~100）。
+  // 一个点从 {"u":0.12,"v":0.34} 的 23 字节降到 [12,34] 的 8 字节 —— 而点就是上传体积的主体。
+  // 云函数那边两种格式都认（老格式照样收、写回时统一成小的那种），
+  // 所以语文和数学用同一份数据，谁先升级都不会把对方的数据弄坏。
+  function packPt(p) {
+    if (Array.isArray(p)) return p;   // 已经是打包过的（从云端回来的）
+    return [Math.round(p.u * 100), Math.round(p.v * 100)];
+  }
+
   function thinPts(pts) {
     var list = Array.isArray(pts) ? pts : [];
-    if (list.length <= 2) return list.slice();
+    if (list.length <= 2) return list.map(packPt);
 
     var out = [list[0]];
     for (var i = 1; i < list.length - 1; i++) {
@@ -208,7 +217,7 @@
       thin.push(out[out.length - 1]);
       out = thin;
     }
-    return out;
+    return out.map(packPt);
   }
 
   // 给报告快照也留个入口：家长在自己手机上看报告时，那份笔迹同样要瘦过身
