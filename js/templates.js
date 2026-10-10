@@ -125,6 +125,12 @@
     MAXMIN_REVERSE: { label: '找成了乘积最小的那个', advice: '先看清楚题目问的是最大还是最小。要最大，就把大的数字往高位放。' },
     UNBALANCED: { label: '只顾着把三位数堆大', advice: '一个数特别大、另一个特别小，乘出来反而小。两个数要挨得近，乘积才最大。' },
     PLACE_LOW: { label: '大数字放到了低位上', advice: '数字越大越该往高的数位放（百位、十位）。放在个位上，这个数字就浪费了。' },
+    // ---- 陷阱 / 转折题型（题干层埋点，干扰项仍然各对应一条真实错路）----
+    EXTRA_INFO_USED: { label: '被多余条件带跑了', advice: '先把问题读清楚：问哪个量，就只算跟它有关的数。用不上的条件，别白算一遍。' },
+    REMAINDER_IGNORED: { label: '把余数的意思读反了', advice: '除下来剩下的那些是"装不下的"，不是"多出来的空位"。想清楚余数代表什么再下结论。' },
+    BOUND_JUDGE: { label: '差一点就算"正好"', advice: '够不够是精确的比较：差一张也不行，一张不多才算正好。比完再下结论。' },
+    HAND_FROZEN: { label: '忘了时针自己也在走', advice: '分针走的时候时针也在慢慢走，半小时正好走半个大格。先看清时针的位置再算夹角。' },
+    CLOCK_GRID: { label: '数大格时把半格丢了', advice: '钟面每一大格是 30°，时针走的半格也有 15°。把整格和半格分开数，别丢。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -3174,6 +3180,357 @@
   // 「盯住 0」适用于所有"因数末尾有 0"的题（20×30、250×40、348×20 都是先算有效部分再补 0），
   // 而「拆开看」只适用于乘数末尾没有 0、必须拆成两部分的题（250×24）。
   // 一开始我把方法挂在知识点上，结果同一个知识点里的题被判成了两种方法 —— 那是错的。
+  /* ==================== 陷阱 / 转折模板族 ====================
+   * 这一类题的难点不在计算，在"读题"和"判断"：
+   * 陷阱埋在题干层（多余条件、隐含拐点、动态钟面、单位混排、反问），
+   * 干扰项仍然各对应一条真实错误路径 —— 归因数据不能因为题变刁就变脏。 */
+
+  // 族：题里塞了一组用不上的条件 —— 考的是"挑量"，不是计算。
+  // 问橘子就只算橘子：把苹果那摊也乘进去的孩子，错因落在他真的走了那一步。
+  function familyExtraInfo(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var perO = pickInt(rng, 12, 28);   // 每箱橘子个数（要用的）
+        var boxO = pickInt(rng, 3, 6);     // 橘子的箱数（要用的）
+        var perA = pickInt(rng, 15, 30);   // 每箱苹果个数（多余）
+        var boxA = pickInt(rng, 2, 5);     // 苹果的箱数（多余）
+        var ans = perO * boxO;
+        var distractors = dedupeDistractors(ans, [
+          { value: ans + perA * boxA, tag: 'EXTRA_INFO_USED' },  // 把两摊都算了
+          { value: perO * perA, tag: 'QUANTITY_WRONG' },         // 两个"每"数相乘
+          { value: boxA * perO, tag: 'QUANTITY_WRONG' }          // 拿错箱数
+        ]);
+        // 干扰项撞车（数太小凑巧相等）时补一个"差一点"的数
+        if (distractors.length < 2) {
+          distractors = dedupeDistractors(ans, distractors.concat([
+            { value: ans + 10, tag: 'CORE_CALC' },
+            { value: ans - (ans > 10 ? 10 : 1), tag: 'CORE_CALC' }
+          ]));
+        }
+        return {
+          stem: '商店运来 ' + boxO + ' 箱橘子，每箱 ' + perO + ' 个；' +
+            '还运来 ' + boxA + ' 箱苹果，每箱 ' + perA + ' 个。' +
+            '运来的橘子一共有多少个？',
+          steps: [
+            {
+              id: 'pick', tier: 1, type: 'choice',
+              prompt: '算橘子一共多少个，要用到哪些数？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '橘子的箱数和每箱个数', tag: null },
+                { value: 2, label: '两种水果的箱数', tag: 'EXTRA_INFO_USED' },
+                { value: 3, label: '四种数都用上', tag: 'EXTRA_INFO_USED' }
+              ]),
+              hint: '题目问的是橘子。跟苹果有关的数，这道题用不上。',
+              teach: [
+                '问的是橘子，就只用橘子的条件：' + boxO + ' 箱、每箱 ' + perO + ' 个',
+                '苹果的条件这道题用不到 —— 会读题的孩子不会白算一遍'
+              ]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '橘子一共有多少个？',
+              answer: ans,
+              distractors: distractors,
+              hint: '每箱 ' + perO + ' 个，有 ' + boxO + ' 箱 —— 每份数 × 份数。',
+              teach: [
+                '每箱 ' + perO + ' 个 × ' + boxO + ' 箱 = ' + ans + '（个）'
+              ]
+            }
+          ],
+          facts: { kind: 'extra-info', perO: perO, boxO: boxO, perA: perA, boxA: boxA, expect: ans }
+        };
+      }
+    };
+  }
+
+  // 族：算完还要做"够不够"的判断 —— 最后一步是判断，不是计算。
+  // 陷阱在两处：余数是"贴不下的照片"不是"空位"；差 2 张不叫"正好"。
+  function familyEnoughJudge(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var per = pickInt(rng, 6, 9);      // 每本贴几张
+        var books = pickInt(rng, 4, 6);    // 几本相册
+        var extra = pickInt(rng, 1, 4);    // 差几张（保证不够，就差一点点）
+        var total = per * books + extra;   // 照片总数
+        var cap = per * books;
+        var opts = [
+          { value: 1, label: '不够，还差 ' + extra + ' 张', tag: null },
+          { value: 2, label: '够，正好贴完', tag: 'BOUND_JUDGE' },
+          { value: 3, label: '够，还剩 ' + extra + ' 张空位', tag: 'REMAINDER_IGNORED' },
+          { value: 4, label: '不够，差 ' + (extra + 2) + ' 张', tag: 'SUB_CALC' }
+        ];
+        return {
+          stem: '每本相册贴 ' + per + ' 张照片，一共有 ' + total + ' 张照片。' +
+            books + ' 本这样的相册，够贴吗？',
+          steps: [
+            {
+              id: 'cap', tier: 1, type: 'number',
+              prompt: books + ' 本相册一共能贴多少张？',
+              answer: cap,
+              distractors: dedupeDistractors(cap, [
+                { value: per + books, tag: 'QUANTITY_WRONG' },
+                { value: cap * 10, tag: 'ZERO_HIGH' }
+              ]),
+              hint: '每本 ' + per + ' 张，有 ' + books + ' 本。',
+              teach: [per + ' × ' + books + ' = ' + cap + '（张）']
+            },
+            {
+              id: 'judge', tier: 0, type: 'choice',
+              prompt: '贴得下吗？',
+              answer: 1,
+              options: shuffle(rng, opts),
+              hint: '拿能贴的张数和照片总数比一比，多出来的那几张往哪儿放？',
+              teach: [
+                per + ' × ' + books + ' = ' + cap + '，照片有 ' + total + ' 张',
+                total + ' 比 ' + cap + ' 多 ' + extra + ' 张 —— 这几张没有地方贴，所以不够'
+              ]
+            }
+          ],
+          facts: { kind: 'enough-judge', per: per, books: books, extra: extra, total: total, cap: cap, expect: 1 }
+        };
+      }
+    };
+  }
+
+  // 族：跨知识点综合 —— 面积（06-01）算完，再走一遍单价 × 数量（05-01）。
+  // 转折点在"问的是钱，不是面积"：把面积当答案、拿面积乘单价的孩子各有各的错因。
+  // 挂在 05-01（最后一步考的是数量关系）；面积那步的错因走 stepTags。
+  function familyAreaThenPrice(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = pickInt(rng, 2, 5) * 10;       // 长（整十厘米）
+        var b = pickInt(rng, 1, 3) * 10;       // 宽（整十厘米）
+        var area = a * b;                      // 一块的面积（平方厘米）
+        // 总价不能和面积撞（比如 4 元 × 50 块 = 200，正好 20 × 10 的面积）：
+        // 撞了"停在面积那一步"的干扰项就会被去重掉，探针白放
+        var price, pieces, total;
+        do {
+          price = pickInt(rng, 3, 6);          // 每块多少元
+          pieces = pickInt(rng, 4, 6) * 10;    // 一共多少块
+          total = price * pieces;
+        } while (total === area);
+        return {
+          stem: '一种地砖长 ' + a + ' 厘米、宽 ' + b + ' 厘米，每块 ' + price + ' 元。' +
+            '铺一个台面正好用了 ' + pieces + ' 块，这个台面的地砖一共花了多少元？',
+          steps: [
+            {
+              id: 'area', tier: 1, type: 'choice',
+              prompt: '一块地砖的面积是多少平方厘米？',
+              answer: area,
+              options: shuffle(rng, [
+                { value: area, label: area + ' 平方厘米', tag: null },
+                { value: 2 * (a + b), label: (2 * (a + b)) + ' 平方厘米', tag: 'AREA_PERIMETER' },
+                { value: a * 10 * b, label: (a * 10 * b) + ' 平方厘米', tag: 'UNIT_MISMATCH' }
+              ]),
+              hint: '长方形面积 = 长 × 宽。单位都是厘米，直接乘。',
+              teach: [
+                a + ' × ' + b + ' = ' + area + '（平方厘米）'
+              ]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '地砖一共花了多少元？',
+              answer: total,
+              distractors: dedupeDistractors(total, [
+                { value: area, tag: 'COPY_GIVEN' },              // 停在面积那一步
+                { value: area * price, tag: 'QUANTITY_WRONG' },  // 拿面积去乘单价
+                { value: total + 10, tag: 'CORE_CALC' }
+              ]),
+              hint: '题目问的是钱：每块 ' + price + ' 元，一共 ' + pieces + ' 块。',
+              teach: [
+                '一块的面积是 ' + area + ' 平方厘米 —— 但买地砖算的是钱',
+                '每块 ' + price + ' 元 × ' + pieces + ' 块 = ' + total + '（元）'
+              ]
+            }
+          ],
+          facts: { kind: 'area-then-price', a: a, b: b, price: price, pieces: pieces, area: area, expect: total }
+        };
+      }
+    };
+  }
+
+  // 族：钟面上的夹角 —— 3:30 不是 90°，分针走的时候时针也在走。
+  // "动态钟面"的经典陷阱：直觉答案（按整点算）恰好是错的那个。
+  function familyClockAngle(spec) {
+    // 干扰项按 h 手工定好：几个经典错值在不同 h 下会撞在一起，
+    // 现算容易撞车。每个 h 的四个值两两不同、都是正数。
+    var TRAPS = {
+      2: { frozen: 120, grid: 90, sub: 135 },
+      3: { frozen: 90, grid: 60, sub: 105 },
+      4: { frozen: 60, grid: 30, sub: 75 }
+    };
+    var HOURS = [2, 3, 4];
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var h = HOURS[Math.floor(rng() * HOURS.length)];
+        var t = TRAPS[h];
+        // 正确答案：分针指 6（180°），时针在 h 和 h+1 正中间（h×30° + 15°）。
+        // 夹角 = 180 - (h×30 + 15)：h=2 是 105，h=3 是 75，h=4 是 45。
+        var ans = 180 - (h * 30 + 15);
+        return {
+          stem: h + ' 时 30 分，钟面上时针和分针的夹角（小角）是多少度？',
+          steps: [
+            {
+              id: 'hand', tier: 1, type: 'choice',
+              prompt: h + ' 时 30 分，时针指在哪里？',
+              answer: 2,
+              options: shuffle(rng, [
+                { value: 1, label: '正好指着 ' + h, tag: 'HAND_FROZEN' },
+                { value: 2, label: h + ' 和 ' + (h + 1) + ' 的正中间', tag: null },
+                { value: 3, label: '正好指着 ' + (h + 1), tag: 'HAND_FROZEN' }
+              ]),
+              hint: '30 分是半小时。这半小时里，时针自己也在往前走。',
+              teach: [
+                '分针从 12 走到 6 的这半小时里，时针也在走',
+                '半小时正好是半个大格，时针在 ' + h + ' 和 ' + (h + 1) + ' 的正中间'
+              ]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '时针和分针的夹角是多少度？',
+              answer: ans,
+              options: shuffle(rng, [
+                { value: ans, label: ans + '°', tag: null },
+                { value: t.frozen, label: t.frozen + '°', tag: 'HAND_FROZEN' },
+                { value: t.grid, label: t.grid + '°', tag: 'CLOCK_GRID' },
+                { value: t.sub, label: t.sub + '°', tag: 'SUB_CALC' }
+              ]),
+              hint: '分针指 6，对应 180°；先算出时针在多少度，再用 180° 减它。',
+              teach: [
+                '分针指 6，对应 180°；时针在 ' + h + ' 和 ' + (h + 1) + ' 的正中间，是 ' + (h * 30 + 15) + '°',
+                '夹角 = 180° - ' + (h * 30 + 15) + '° = ' + ans + '°'
+              ]
+            }
+          ],
+          facts: { kind: 'clock-angle', h: h, expect: ans }
+        };
+      }
+    };
+  }
+
+  // 族：长和宽的单位不一样 —— 陷阱不在乘法，在"先换算"。
+  function familyAreaUnitMix(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a, b;
+        // 周长干扰项 = (a+b)×2×100，不能和面积撞：a×b = 2(a+b) 会在 4×4、6×3 撞上
+        do {
+          a = pickInt(rng, 4, 9);
+          b = pickInt(rng, 3, 8);
+        } while (a * b === 2 * (a + b));
+        var sqm = a * b;        // 平方米
+        var ans = sqm * 100;    // 平方分米
+        var opts = [
+          { value: ans, label: ans + ' 平方分米', tag: null },
+          { value: sqm, label: sqm + ' 平方分米', tag: 'UNIT_MISMATCH' },       // 没换算直接乘
+          { value: sqm * 10, label: (sqm * 10) + ' 平方分米', tag: 'AREA_UNIT_RATE' },  // 进率记成 10
+          { value: 2 * (a + b) * 100, label: (2 * (a + b) * 100) + ' 平方分米', tag: 'AREA_PERIMETER' } // 算成周长
+        ];
+        return {
+          stem: '一块长方形广告牌，长 ' + a + ' 米、宽 ' + b + ' 米。它的面积是多少平方分米？',
+          steps: [
+            {
+              id: 'convert', tier: 1, type: 'number',
+              prompt: a + ' 米 = ? 分米',
+              answer: a * 10,
+              distractors: dedupeDistractors(a * 10, [
+                { value: a, tag: 'UNIT_MISMATCH' },
+                { value: a * 100, tag: 'UNIT_CONVERT_DIR' }
+              ]),
+              hint: '1 米 = 10 分米。米换成分米，要乘进率。',
+              teach: [a + ' × 10 = ' + (a * 10) + '（分米）']
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '面积是多少平方分米？',
+              answer: ans,
+              options: shuffle(rng, opts),
+              hint: '先把长和宽换成同一种单位，再算长 × 宽。',
+              teach: [
+                a + ' 米 = ' + (a * 10) + ' 分米，' + b + ' 米 = ' + (b * 10) + ' 分米',
+                (a * 10) + ' × ' + (b * 10) + ' = ' + ans + '（平方分米）',
+                '也可以先算 ' + sqm + ' 平方米，再乘进率 100'
+              ]
+            }
+          ],
+          facts: { kind: 'area-unit-mix', a: a, b: b, expect: ans }
+        };
+      }
+    };
+  }
+
+  // 族：反过来问 —— 不问积是多少，问积的末尾有几个 0。
+  // 经典陷阱：250 × 40，孩子只数因数末尾的 0（2 个），
+  // 忘了有效部分自己还带着 0（25 × 4 = 100，又 2 个）。
+  function familyZeroCountAsk(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = pickCore(rng, 12, 49) * 10;   // 末尾恰好 1 个 0 的两三位数
+        var b = pickCore(rng, 2, 9) * 10;     // 末尾恰好 1 个 0 的两位数
+        var prod = a * b;
+        var ans = countZeros(prod);
+        var zA = countZeros(a), zB = countZeros(b);
+        var wrongs = dedupeDistractors(ans, [
+          { value: zA + zB, tag: 'FORGOT_ZEROS' },        // 只数因数末尾的 0
+          { value: ans - 1, tag: 'ZERO_COUNT_LOW' },
+          { value: ans + 1, tag: 'ZERO_COUNT_HIGH' },
+          { value: zA + zB + 1, tag: 'FORGOT_ZEROS' }
+        ]).filter(function (d) { return d.value > 0; });
+        // 撞车后不足两个就从小正整数里补
+        var pool = [1, 2, 3, 4, 5, 6];
+        var i = 0;
+        while (wrongs.length < 2 && i < pool.length) {
+          if (pool[i] !== ans) wrongs.push({ value: pool[i], tag: 'ZERO_COUNT_LOW' });
+          i++;
+        }
+        return {
+          stem: '不列竖式，直接想一想：' + a + ' × ' + b + ' 的积的末尾一共有几个 0？',
+          steps: [
+            {
+              // 步骤 id 刻意不叫 'core'：那是对应性测试里"乘法链"的识别标记，
+              // 这道题的最终答案是个数（0 的个数），不满足"末尾多 0 积多 0"那条链。
+              id: 'plain', tier: 1, type: 'number',
+              prompt: '去掉末尾的 0，先算：' + (a / 10) + ' × ' + (b / 10) + ' = ?',
+              answer: (a / 10) * (b / 10),
+              distractors: [],
+              hint: '先把两个因数末尾的 0 都拿掉，算前面的有效部分。',
+              teach: [(a / 10) + ' × ' + (b / 10) + ' = ' + ((a / 10) * (b / 10))]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '积的末尾一共有几个 0？',
+              answer: ans,
+              options: shuffle(rng, [{ value: ans, label: ans + ' 个', tag: null }].concat(
+                wrongs.map(function (d) {
+                  return { value: d.value, label: d.value + ' 个', tag: d.tag };
+                }))),
+              hint: '有效部分的积自己末尾可能就带着 0，把它们和要补的 0 加在一起数。',
+              teach: [
+                '有效部分 ' + (a / 10) + ' × ' + (b / 10) + ' = ' + ((a / 10) * (b / 10)) + '，它末尾有 ' + countZeros((a / 10) * (b / 10)) + ' 个 0',
+                '两个因数末尾一共 ' + (zA + zB) + ' 个 0',
+                '所以积的末尾一共 ' + ans + ' 个 0'
+              ]
+            }
+          ],
+          facts: { kind: 'zero-count', a: a, b: b, prod: prod, expect: ans }
+        };
+      }
+    };
+  }
+
   var SPECS = [
     // ---- 04-01 整十整百数相乘的口算（低难度，主要用来做热身）----
     {
@@ -3216,6 +3573,11 @@
       family: familyMultiplicandZeros, id: 'T-0404-D', kp: 'M4A-04-04', difficulty: 0.62,
       shape: '末尾有 0 的三位数 × 两位数（要拆两部分）', method: 'M-SPLIT',
       aCore: function (rng) { return pickCore(rng, 12, 48); }
+    },
+    {
+      // 反问型：不问积，问积的末尾有几个 0。有效部分自己带 0 的坑就埋在这里。
+      family: familyZeroCountAsk, id: 'T-0404-F', kp: 'M4A-04-04', difficulty: 0.68,
+      shape: '反问积的末尾有几个 0（不列竖式）', method: 'M-COUNT-ZERO'
     },
 
     // ---- 04-06 乘法估算 ----
@@ -3402,6 +3764,11 @@
       whole: 360, xMin: 100, xMax: 300
     },
     {
+      // 陷阱：钟面上的动态角 —— 3:30 时针不在 3 上，直觉的 90° 恰好是错的。
+      family: familyClockAngle, id: 'T-0203-G', kp: 'M4A-02-03', difficulty: 0.68,
+      shape: '钟面上的夹角（时针自己也在走）', method: 'M-WHOLE-ANGLE'
+    },
+    {
       family: familyAngleRelation, id: 'T-0204-C', kp: 'M4A-02-04', difficulty: 0.50,
       shape: '周角 / 平角 / 直角的换算', method: 'M-WHOLE-ANGLE'
     },
@@ -3456,6 +3823,22 @@
       ask: 'qty',
       price: function (rng) { return pickInt(rng, 4, 12); },
       qty: function (rng) { return pickInt(rng, 3, 9); }
+    },
+    {
+      // 陷阱：题里塞了一组用不上的条件。难点在"挑量"，不在计算。
+      family: familyExtraInfo, id: 'T-0501-F', kp: 'M4A-05-01', difficulty: 0.55,
+      shape: '带多余条件的总价题（要自己挑量）', method: 'M-QUANTITY'
+    },
+    {
+      // 陷阱：算完还要判断"够不够" —— 差一点点恰恰是不够。
+      family: familyEnoughJudge, id: 'T-0501-G', kp: 'M4A-05-01', difficulty: 0.64,
+      shape: '够不够的判断题（差一点也算不够）', method: 'M-QUANTITY'
+    },
+    {
+      // 跨知识点综合：先用面积（06-01），再用单价×数量（05-01）。
+      // 问的是钱不是面积 —— 两步之间有个"转折"。
+      family: familyAreaThenPrice, id: 'T-0501-H', kp: 'M4A-05-01', difficulty: 0.70,
+      shape: '先算一块的面积，再算总价（两步综合）', method: 'M-QUANTITY'
     },
 
     // ---- 05-02 第五单元 速度 × 时间 = 路程 ----
@@ -3520,6 +3903,11 @@
       long: function (rng) { return pickInt(rng, 12, 35); },
       wide: function (rng) { return pickInt(rng, 6, 14); },
       rate: function (rng) { return pickInt(rng, 3, 9); }
+    },
+    {
+      // 陷阱：长和宽单位不一样 —— 难点在"先换算"，不在乘法。
+      family: familyAreaUnitMix, id: 'T-0601-E', kp: 'M4A-06-01', difficulty: 0.60,
+      shape: '面积单位混排（要先换算再算）', method: 'M-AREA-RECT'
     },
 
     // ---- 06-02 第六单元 正方形面积 ----
@@ -3812,6 +4200,9 @@
 
   var TEMPLATES = SPECS.map(function (s) {
     var t = s.family(s);
+    // 留个家族名：测试要按家族认题（同 id 前缀下混着别的题型，比如钟面角），
+    // 报告聚合也可能用得上。存字符串，序列化安全。
+    t.familyName = s.family.name;
     // intro 是"这个知识点第一次露面先出这道探究题"的标记，由组卷层使用
     if (s.intro) t.intro = true;
     return t;

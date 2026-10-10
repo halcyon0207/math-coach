@@ -1530,7 +1530,7 @@
 
       if (ss.attempts === 1) {
         var mag = isFinalStep && isCalc ? E.magnitudeCheck(step.answer, value) : 'ok';
-        if (mag === 'digit' || mag === 'magnitude') {
+        if (mag === 'digit' || mag === 'magnitude' || mag === 'zeros') {
           ss.magnitudeFailed = true;
           app.feedback = { tone: 'warn', text: E.magnitudeMessage(mag) };
         } else {
@@ -1667,6 +1667,14 @@
     render();
   }
 
+  // 本地场次记录封顶：history 有 2000 上限，sessions 原来没有 ——
+  // 一天一场三年就是一千多条，localStorage 只会越攒越多。
+  // 报告用的是"最近一段"（有范围过滤），封到 1000 条绰绰有余。
+  function trimSessions() {
+    var s = app.state.sessions;
+    if (s && s.length > 1000) app.state.sessions = s.slice(-1000);
+  }
+
   function endSession() {
     app.session.endedAt = Date.now();
     app.summary = E.summarize(app.state, app.session, app.results);
@@ -1681,6 +1689,7 @@
       // 首页"今天练过没有"、报告里"这周练了几天"都靠这个字段区分。
       mode: app.session.mode || ''
     });
+    trimSessions();
     clearDraft();       // 这一场做完了，草稿不用留
     saveState();
     // 不自动上传：什么时候把这一场的成绩交给家长，由人点「提交给家长」决定
@@ -1705,6 +1714,7 @@
         mode: app.session.mode || '',
         quit: true
       });
+      trimSessions();
     }
     // 刚退出的这一题已经记过账了，草稿要推到下一题 ——
     // 不推的话下次"继续做"会把同一道题再算一遍，掌握度也跟着多记一笔。

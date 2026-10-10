@@ -1,6 +1,5 @@
+# 9/24 整理仓库的纪律：只留页面运行需要的文件，其余留本地
+tests/
+scripts/
+docs/
 node_modules/
-.env.local
-.env
-*.log
-.DS_Store
-Thumbs.db

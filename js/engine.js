@@ -379,6 +379,9 @@
       if (st.wrongs > 0) return '你在「' + name + '」上错过了 ' + st.wrongs + ' 次，再练一下。';
       return '「' + name + '」还不太稳，再来几道。';
     }
+    if (kind === 'redo') {
+      return '这道题你之前错过，换了个数字再来一次 —— 这次把方法走对。';
+    }
     if (kind === 'review') {
       if (st.wrongs > 0) return '「' + name + '」上次错过了，今天先订正一次。';
       return '「' + name + '」到复习的日子了 —— 现在再练一次，才不会忘。';
@@ -390,6 +393,21 @@
       return '最后一道稍微难一点，试试看 —— 做不出来也完全没关系。';
     }
     return '';
+  }
+
+  // 每日份的「订正」名额：从 history 里找最近的一道错题（最多往回看 2 天）。
+  // 错题之前只活在家长报告里，孩子端没有闭环 —— 同题型换数字再练一次，
+  // 订正的是方法，不是让孩子重做一模一样的数字。
+  function pickRedo(state) {
+    var hist = state.history || [];
+    var since = Date.now() - 2 * DAY;
+    for (var i = hist.length - 1; i >= 0; i--) {
+      var h = hist[i];
+      if (h && h.isCorrect === false && h.kpId && h.templateId && (h.ts || 0) >= since) {
+        return h;
+      }
+    }
+    return null;
   }
 
   function buildSession(state, rng, count, unitFilter, opts) {
@@ -420,9 +438,12 @@
 
     // 最近两场做过的题型：一单元的知识点就那么几个，连着两场很可能挑中同一批
     // 模板 —— 题里的数字是新的，但考法一模一样，孩子会觉得"刚做过"。
-    // 取 history 尾部 20 条（大约两场）的模板 id，出题时优先避开（避不开就放开）。
+    // 出题时优先避开（避不开就放开）。
     var avoid = {};
-    (state.history || []).slice(-20).forEach(function (h) {
+    // 防重复窗口跟着题量走：固定 20 条在 15 题一场时只盖到 1.3 场，
+    // 兑现不了"避开最近两场"。按 2 × 题量取，最小保住 20 条。
+    var avoidWindow = Math.max(20, count * 2);
+    (state.history || []).slice(-avoidWindow).forEach(function (h) {
       if (h && h.templateId) avoid[h.templateId] = 1;
     });
 
@@ -430,7 +451,10 @@
     // 原来的压轴是"本单元最难的那道"，跟掌握度无关 —— 刚把基础过完的孩子
     // 每场最后都要撞一次挑战题，错了再记一笔，掌握度反而掉下去。
     var open = openPool(pool, state);
-    var warmPool = open.filter(function (t) { return t.difficulty <= 0.45; });
+    // 热身只出基础档：阈值引用 TIERS[0].max，不再单独写死一个数 ——
+    // 以前写 0.45，而基础档顶是 0.42，两本账对不上，巩固档门口的题会混进热身。
+    var warmMax = Knowledge.TIERS[0].max;
+    var warmPool = open.filter(function (t) { return t.difficulty <= warmMax; });
     if (!warmPool.length) warmPool = open;
 
     var highest = open.slice().sort(function (a, b) { return b.difficulty - a.difficulty; })[0];
@@ -466,7 +490,14 @@
           ? slot.kp.id : null;
         var tpl = null, q = null, tries = 0;
         while (tries < 12) {
-          tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp, avoid, usedTplIds);
+          // 订正名额：强制用之前错的那套题型（数字是新的 —— rng 每次往前走）。
+          // 池子里找不到（模板被下线之类）就退回普通挑选，别让一场卡住。
+          if (slot.forceId) {
+            tpl = slot.pool.filter(function (t) { return t.id === slot.forceId; })[0] || null;
+          }
+          if (!tpl) {
+            tpl = chooseTemplate(slot.pool, slot.diff, rng, recent, introKp, avoid, usedTplIds);
+          }
           if (tpl.intro) introDone[tpl.kp] = true;
           var kpId2 = tpl.kp;
           var lvl = scaffoldLevelFor(masteryOf(state, kpId2), statsOf(state, kpId2));
@@ -535,6 +566,24 @@
       //    第一次露面会出探究题，把概念一步步搭出来，不是考他）
       var fresh = kps.filter(function (k) { return statsOf(state, k.id).attempts === 0; })[0];
       if (fresh) dailyKp('weak', fresh);
+
+      // ①.5 订正：最近错过的那道题，同题型换个数字再来一次（占一个名额）。
+      //    放在到期复习之前 —— 刚错的先订正，比隔了几天的复习更急。
+      //    知识点撞车时让位（一份里一个知识点只出现一次）。
+      var redo = pickRedo(state);
+      if (redo) {
+        var redoKp = Knowledge.byId(redo.kpId);
+        if (redoKp && !picked[redoKp.id]) {
+          picked[redoKp.id] = 1;
+          slots.push({
+            kind: 'redo',
+            pool: unlockedTemplates(state, redoKp.id),
+            kp: redoKp,
+            diff: targetDifficulty(state, redoKp),
+            forceId: redo.templateId
+          });
+        }
+      }
 
       // ② 到期的，最多 3 块（到期多的时候留给"就练这些"，日常份不塞满）
       dueKps.filter(function (k) { return !picked[k.id]; }).slice(0, 3)
@@ -692,8 +741,16 @@
     var a = Math.abs(Number(answer));
     var v = Math.abs(Number(value));
     if (!isFinite(v) || v === 0) return 'none';
-    var da = String(Math.round(a)).length;
-    var dv = String(Math.round(v)).length;
+    var sa = String(Math.round(a));
+    var sv = String(Math.round(v));
+    // 只差末尾 0（有效部分相同）时单独提示：这正是"忘了补 0 / 0 多补了"一族
+    // 错误的形态，笼统说"位数不对"孩子多半还是往别处找。先于位数检查 ——
+    // 这类错的位数一定不同，笼统那条会先把路堵死。
+    var za = (sa.match(/0+$/) || [''])[0].length;
+    var zv = (sv.match(/0+$/) || [''])[0].length;
+    if (za !== zv && sa.replace(/0+$/, '') === sv.replace(/0+$/, '')) return 'zeros';
+    var da = sa.length;
+    var dv = sv.length;
     if (dv !== da) return 'digit';
     var r = v / a;
     if (r >= 2 || r <= 0.5) return 'magnitude';
@@ -703,6 +760,7 @@
   function magnitudeMessage(kind) {
     if (kind === 'digit') return '结果的位数好像不对，要不要再检查一下？（先估一估大概是多少）';
     if (kind === 'magnitude') return '结果的数量级好像不太对，先估一估再算算看。';
+    if (kind === 'zeros') return '结果的末尾好像多了或少了个零，把零的个数再数一遍。';
     return '';
   }
 
