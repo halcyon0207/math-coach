@@ -20,7 +20,11 @@
   // 云函数地址（部署 10_家庭数据同步 之后填进来；两个项目用同一个）
   var API_BASE = 'https://trae-projects-4g5aob6ufac38569-1421597865.ap-shanghai.app.tcloudbase.com/report';
 
-  var TIMEOUT = 8000;     // 单次请求超时
+  // 单次请求超时。云函数每次都要"读 GitHub → 改 → 写回"，云端那份文件大了以后
+  // 一个来回要好几秒；8 秒（原来）会经常提前放弃 —— 而放弃不等于服务端没做事：
+  // 它可能已经写进去了，只是回信没赶上。于是前端判失败、排队重发，服务端再看到
+  // 就是"这条已经批过了"。家长会莫名其妙看到"被另一台设备批过"，其实根本没有第二台。
+  var TIMEOUT = 25000;
 
   // 家庭码长什么样。前端也按这个校验 —— 不然输个 "abc" 也当成"已开启"，
   // 结果是每次请求都被服务端打回来，而界面只说一句"同步暂不可用"，
@@ -106,8 +110,10 @@
     return (typeof AbortController === 'function') ? new AbortController() : null;
   }
 
-  // 明确离线就别发（注意反过来不成立：连上了 WiFi 也可能没有互联网，那种照发）。
-  // 这一层只为省掉"明知道没网还干等一个超时周期" —— 那段时间界面上什么都没有。
+  // 明确离线就别发。注意反过来不成立：onLine 为 true 也可能连不上
+  // （连上了 WiFi 但没有互联网），那种还是照发，超时归超时。
+  // 这一层只为省掉"明知道没网还干等 25 秒" —— 那段时间界面上什么都没有，
+  // 家长只能干等，还以为提交已经在跑了。
   function offline() {
     return typeof navigator !== 'undefined' && navigator.onLine === false;
   }
@@ -126,9 +132,12 @@
     };
     if (ctl) opts.signal = ctl.signal;
 
-    // 超时必须自己兜住，不能指望 AbortController：不支持它的浏览器压根没有超时，
-    // 那种情况下这个 Promise 永远不返回，界面就一直停在"正在提交…"。
-    // 用 Promise.race 加一道：到点一定给调用方一个结果（失败也是结果）。
+    // 超时必须**自己兜住**，不能指望 AbortController：
+    // 1) 不支持它的浏览器（老平板上的旧 Safari）压根没有超时 —— fetch 一直挂着，
+    //    这个 Promise 永远不返回，界面就永远停在"正在提交…"，而家长那头永远收不到；
+    // 2) 就算支持，abort 之后 fetch 什么时候 reject 由浏览器决定，不是我们说了算。
+    // 所以再用 Promise.race 加一道：到点一定给调用方一个结果（失败也是一种结果）。
+    // abort 保留着 —— 能把那个请求真的掐掉，省下这一路的流量和时间。
     var req = fetch(API_BASE, opts);
     var timer = null;
     var guard = new Promise(function (_, rej) {
@@ -150,12 +159,35 @@
     });
   }
 
+  // 浏览器的 fetch 失败给的是各家自己的原文 —— Chrome 说 Failed to fetch、
+  // Safari 说 Load failed、Firefox 说 Network request failed。家长看不懂，
+  // 更麻烦的是**会被误导**：屏幕上写着这句，家长只会想"我明明连着网啊"。
+  //
+  // 所以翻成人话，并把两件事分开，因为处理办法完全不同：
+  //   · 连不上 —— 请求压根没落地（DNS 解析不出 / 连接建不起来 / 被网络层拦掉）→ 换网络
+  //   · 超时   —— 发出去过，服务器没回话 → 再点一次就只补没传完的
+  function friendly(e) {
+    var m = String((e && e.message) || '');
+    if (!m) return '连不上';
+    if (/超时/.test(m)) return '服务器没回话（超时）';
+    if (/Failed to fetch|Load failed|Network request failed|NetworkError/i.test(m)) {
+      return '这台设备连不上同步服务器';
+    }
+    return m;
+  }
+
   // 失败统一记一句就完事：同步出问题不能打断孩子写字，也不能弹错误框吓家长
   function note(e) {
-    lastError = (e && e.message) || '连不上';
+    lastError = friendly(e);
     if (hooks.onStatus) hooks.onStatus();
   }
 
+  // 这一把锁**现在没有调用点**：flushWork / flushGrades 都是直接跑的。
+  // 并发安全靠的是另外两层，别误以为靠它：
+  //   · 作业流 —— flushWork 一进来就把 dirty 清掉，第二次调用会被 skipped 挡住；
+  //   · 批改流 —— flushGrades 先把 outbox 截走，第二次进来拿到的是剩下的那批。
+  // 留着它是为了以后要加"自动重试"时有个现成的串行口子；
+  // 真到那时候再按流分开（作业 / 批改 / 报告各一把），一把全局锁会互相拖累。
   function ok(fn) {
     if (!on() || busy) return;
     busy = true;
@@ -189,9 +221,15 @@
   var MAX_PTS_PER_STROKE = 12;  // 单笔最多留这么多点，一笔的形状还在
 
   // 点坐标打包成 [u, v] 整数百分比（0~100）。
-  // 一个点从 {"u":0.12,"v":0.34} 的 23 字节降到 [12,34] 的 8 字节 —— 而点就是上传体积的主体。
-  // 云函数那边两种格式都认（老格式照样收、写回时统一成小的那种），
-  // 所以语文和数学用同一份数据，谁先升级都不会把对方的数据弄坏。
+  //
+  // 为什么值得专门做这件事：一个点从 {"u":0.12,"v":0.34} 的 23 字节降到 [12,34] 的 8 字节。
+  // 而这份数据就是上传体积的主体 —— 孩子 43 条作业 539KB，点占了绝大部分，
+  // 而这条路 120KB 的请求就发不出去了（实测），于是 43 条被切成了十几批、传了 166 秒。
+  // 打包之后文件瘦到三分之一，一批能装的条数翻几倍，批数和耗时跟着一起降。
+  //
+  // 精度 1% 格宽：抽稀的阈值本来就是 2%，千分位的差别回放时根本看不出来。
+  // 云函数那边认两种格式（老格式照样收），回放那边也认两种 ——
+  // 本机历史里、还有别的设备上，都还存着一批 {"u":…,"v":…} 的老点。
   function packPt(p) {
     if (Array.isArray(p)) return p;   // 已经是打包过的（从云端回来的）
     return [Math.round(p.u * 100), Math.round(p.v * 100)];
@@ -227,12 +265,35 @@
     });
   }
 
-  // 一条作业瘦身后大概多少字节 —— 只用来切批，不要求精确
-  var BATCH_MAX_ITEMS = 10;
-  var BATCH_MAX_BYTES = 80 * 1024;   // 云函数请求体 256KB 上限，切批时留足余量
+  // 切批几乎只看体积，条数只是兜底。
+  //
+  // 为什么不再按"每批 10 条"切：云端每收一个请求都要"读整个家庭那份 JSON → 改 → 写回"，
+  // 文件越大一个来回越慢。62 条作业按 10 条一批就是 7 个来回（实测半分钟往上），
+  // 而这 7 个来回期间界面上只有一句"正在提交…" —— 看着像卡死了，其实一直在传，
+  // 家长在那头刷新看到的自然也只有"先到的那一部分"（提交根本还没结束）。
+  //
+  // 但"一个请求能装多少就装多少"这一条走过头了：**这条路上限不在我们手里**。
+  // 实测（孩子那台平板，2026-09-27）：同一个页面里，5KB 的请求 253 毫秒就回来，
+  // 120KB 的直接连不上 —— 43 条作业（539KB）就是卡在这儿，一次都没上去过。
+  // 所以起始批次压到 40KB（不是 150KB），再留一手：发不出去就对半拆（见 flushWork），
+  // 最差拆到一条（10KB 上下），没有哪条路会拦它。
+  var BATCH_MAX_ITEMS = 60;          // 只是兜底：真正在切的是字节数
+  var BATCH_MAX_BYTES = 40 * 1024;
+
+  // 请求体的大小要按 UTF-8 **字节**算，不是字符数：JSON 里的中文一个字占 3 字节，
+  // 按字符数估会低估（一条作业里题目、单元名都是中文），真超了 256KB
+  // 会被云函数整个打回 —— 那一批白传，还得从头再来。
+  function byteLen(s) {
+    var n = 0;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      n += (c < 0x80) ? 1 : ((c < 0x800) ? 2 : 3);
+    }
+    return n;
+  }
 
   function sizeOf(o) {
-    try { return JSON.stringify(o).length; } catch (e) { return 4096; }
+    try { return byteLen(JSON.stringify(o)); } catch (e) { return 4096; }
   }
 
   // 写完一条：只在本机记一笔"有待传的"，不发请求。
@@ -244,6 +305,16 @@
     var s = sync();
     if (!s) return;
     s.dirty = true;
+    // 这个标记**必须落盘**。它是"还有东西没传上去"的唯一凭据 ——
+    // 只改内存的话，提交传到一半被关掉（或页面被刷新），下次进来 dirty 又变回 false，
+    // 那批作业就再也不会自动补传了，除非有人想起来再点一次「提交给家长批改」。
+    save();
+  }
+
+  // 存盘交给界面层（localStorage 在 app.js 那边），这里只有一个钩子。
+  // 没有钩子时（比如测试里）就只改内存，行为照旧。
+  function save() {
+    if (hooks.onSave) { try { hooks.onSave(); } catch (e) {} }
   }
 
   function workPayload() {
@@ -253,7 +324,9 @@
         id: p.id,
         ts: p.ts,
         unit: p.unit || '',
-        devName: s.name || '',
+        // 没起过名字的设备别硬塞一个"设备"上去：家长那台手机上是这么显示的 ——
+        // 「这一条是「设备」上写的」，读起来像话没说完。空着，界面自己会说"另一台设备"。
+        devName: (s.name && s.name !== '设备') ? s.name : '',
         item: p.item,
         strokes: thinStrokes(p.strokes)
       };
@@ -261,16 +334,93 @@
     return { action: 'work.push', fam: s.fam, dev: s.dev, items: items };
   }
 
-  // 一整轮写完（或者点了「提交给家长」）时才真的发这一次。
+  // 一整轮写完（或者点了「提交给家长批改」）时才真的发这一次。
   //
   // 队列可能攒了一百多条、每条又带着笔迹，一个请求装不下（云函数请求体 256KB）。
   // 所以这里按体积切成几批顺序发：第一批照旧"整份覆盖"（本地队列是权威），
   // 后面的批带 append 往上垒 —— 几批的并集正好是完整的队列，结果和一次发完一样，
   // 只是分成了几个请求。
   //
+  // 一次失败就放弃太贵：整批重来意味着云端又要"读一遍、写一遍"那个大文件，
+  // 而网络抖一下恰恰是这里最常见的失败。所以只重试一次，而且退避一下再试 ——
+  // 但服务端说"太频繁"（429）时**不**重试：那时候重试只会把队列堵得更死。
+  function postOnce(body) {
+    return post(body).catch(function (e) {
+      var m = (e && e.message) || '';
+      // 超时也**不**重试：它通常意味着这一路就是慢/卡住了，再等一轮（25 秒 + 25 秒）
+      // 只会让界面在"正在提交…"上挂上一分钟，家长什么反馈都拿不到。
+      // 立刻失败反而好 —— 界面马上说"没提交上去（超时）"，
+      // 而断点续传记账已经落在本机，再点一次只补没传完的那部分。
+      if (/429|频繁|超时/.test(m)) throw e;
+      return new Promise(function (res) { setTimeout(res, 1200); }).then(function () {
+        return post(body);
+      });
+    });
+  }
+
+  // 自检第三步的体量：和一批作业相当（BATCH_MAX_BYTES 150KB，这里取 120KB）。
+  // 用名字常量而不是就地写个数字，是因为这个数必须和"提交时一批能装多少"对得上 ——
+  // 对不上就会测出一个"通"，而真实提交照样失败，等于白测。
+  var BIG_KB = 120;
+  function BIG_PAD() {
+    return new Array(BIG_KB * 1024 + 1).join('x');
+  }
+
+  // 「测一下网络」：分三步问，因为这几步的结果**可以不一样** —— 而不一样的时候，
+  // 恰好就是最难解释的那种现象。
+  //
+  //   ① 直接连服务器（GET）：你在浏览器地址栏里打开那个网址，走的就是这一类。
+  //      它通，说明域名解析、连接、证书、来回全都没问题。
+  //   ② 网页里脚本发出去的请求（POST，就是提交作业那一趟）：有些浏览器的"安全防护 /
+  //      广告过滤"只拦第 ② 种 —— 它们把"网页自己发起的请求"当广告或追踪打掉。
+  //      于是就成了"网址打得开，但作业提交不上去"。
+  //
+  // 两步一起报，"连不上"才不再是一句没用的废话：第一步通、第二步不通，答案就写在脸上。
+  function checkNetwork() {
+    if (!on()) return Promise.resolve({ ok: false, error: '没开同步' });
+    var s = sync();
+    var t1 = nowTs();
+    // ① 只要求"有响应"，哪怕它是 400 —— 服务器收到了、也回话了，这就叫通
+    return fetch(API_BASE, { method: 'GET', cache: 'no-store' })
+      .then(function (r) { return { ok: true, status: r.status, ms: nowTs() - t1 }; },
+            function (e) { return { ok: false, ms: nowTs() - t1, error: friendly(e) }; })
+      .then(function (direct) {
+        var t2 = nowTs();
+        return post({ action: 'hello', fam: s.fam, dev: s.dev }).then(function () {
+          return { direct: direct, post: { ok: true, ms: nowTs() - t2 } };
+        }, function (e) {
+          // 顺手把状态记上：测出来不通，报告页那句状态也就跟着说实话了
+          lastError = friendly(e);
+          if (hooks.onStatus) hooks.onStatus();
+          return { direct: direct, post: { ok: false, ms: nowTs() - t2, error: friendly(e) } };
+        });
+      })
+      .then(function (r) {
+        // ③ 再按**真实提交的体量**发一趟（约 120 KB，和一批作业相当）。
+        // 前两步都很小，它们通只说明"这条路上能走人"；而真正要背的是几十上百 KB 的笔迹。
+        // 大请求卡在中间某一层（路由器、浏览器、运营商）时，表现和小请求被拦一模一样 ——
+        // 都是"拿不到响应"。只有按真实体量量一次，才能把这两件事分开。
+        // 载荷塞在 hello 里：云函数读得动、但它不认识这个字段，也不写任何数据。
+        var t3 = nowTs();
+        var payload = { action: 'hello', fam: s.fam, dev: s.dev, pad: BIG_PAD() };
+        return post(payload).then(function () {
+          return { direct: r.direct, post: r.post, big: { ok: true, ms: nowTs() - t3, kb: BIG_KB } };
+        }, function (e) {
+          return {
+            direct: r.direct, post: r.post,
+            big: { ok: false, ms: nowTs() - t3, kb: BIG_KB, error: friendly(e) }
+          };
+        });
+      });
+  }
+
   // 返回 { ok }: 界面上那个提交按钮要照着说一句实话 ——
   // "已提交"和"没传上去"对家长是两件完全不同的事。老调用方不看返回值，照旧。
-  function flushWork() {
+  //
+  // onProgress（可选）每批落地后调一次，带上 { batch, batches, sent, total }：
+  // 六十多条要传半分钟，界面上只写一句"正在提交…"和卡死没区别 ——
+  // 家长在那头看见"只到了 26 条"就是这么来的：提交还在半路上，他先刷新了。
+  function flushWork(onProgress) {
     if (!on()) return Promise.resolve({ ok: false, error: '没开同步' });
     var s = sync();
     if (!s.dirty) return Promise.resolve({ ok: true, skipped: true });   // 没有新写的，就别白跑一趟
@@ -279,9 +429,29 @@
     var all = workPayload().items;
     if (!all.length) return Promise.resolve({ ok: true, skipped: true });
 
+    // 断点续传：上一次没传完的（断网、超时、关页面）已经躺在云端了，这次只补剩下的。
+    // 不记这笔账的话，一次失败就得把整个队列从第一批重新覆盖一遍 ——
+    // 六十多条从头再来就是好几分钟，而"其实只差最后一批没上去"是最常见的情况。
+    var doneIds = [];
+    var pushed = {};
+    (Array.isArray(s.workPushed) ? s.workPushed : []).forEach(function (id) {
+      if (!pushed[id]) { pushed[id] = 1; doneIds.push(id); }
+    });
+    var resume = doneIds.length > 0;
+    var todo = all.filter(function (it) { return !pushed[it.id]; });
+    if (!todo.length) {   // 上次其实全传上去了，只是回信没等到
+      // 这里**不能清 workPushed**：pending 里那些条目还留着等家长批改，
+      // 清掉的话下次点「提交给家长批改」会把整队再传一遍
+      //（家长的原话："刚刚已经成功提交了，现在点一下又重新开始提交一遍了"）。
+      lastError = '';
+      if (hooks.onStatus) hooks.onStatus();
+      // skipped：让界面照实说"这次没有要新传的"，而不是又报一遍"已提交 102 条"
+      return Promise.resolve({ ok: true, skipped: true, count: all.length, batches: 0 });
+    }
+
     var batches = [];
     var cur = [], curBytes = 0;
-    all.forEach(function (it) {
+    todo.forEach(function (it) {
       var n = sizeOf(it);
       if (cur.length && (cur.length >= BATCH_MAX_ITEMS || curBytes + n > BATCH_MAX_BYTES)) {
         batches.push(cur);
@@ -294,28 +464,79 @@
     if (cur.length) batches.push(cur);
 
     var grades = [];
-    var chain = Promise.resolve();
-    batches.forEach(function (batch, i) {
-      chain = chain.then(function () {
-        var body = { action: 'work.push', fam: s.fam, dev: s.dev, items: batch };
-        // 第一批不带 append（整份覆盖），后面几批往上垒
-        if (i > 0) body.append = true;
-        return post(body).then(function (data) {
-          // 搭车带回来的批改结果：孩子端不用再单独发一次请求
-          if (data && data.grades && data.grades.length) grades = grades.concat(data.grades);
+    var full = 0;   // 云端装不下、还留在本机的条数
+    var sent = 0;
+    var batchNo = 0;
+    // 只要还没成功写过一批，这一批就该用"整份覆盖"的语义（清掉云端上一轮的待批）；
+    // 接着上次没传完的必须一直往上垒，否则会把已经上去的那部分冲掉。
+    var firstDone = resume;
+
+    // 发一批；发不出去就对半拆开接着发。
+    //
+    // 为什么不干脆把批次调到一个"安全的数"：这条路的胃口**不在我们手里** ——
+    // 同一个页面里，小请求 253 毫秒就通，120KB 直接连不上（孩子那台平板实测）。
+    // 而"这批太大"和"网络断了"在浏览器里长得一模一样（都是拿不到响应），
+    // 从错误里根本分不出来。所以别猜那个数：大过不去就拆一半，还过不去再拆，
+    // 最差拆到一条 —— 一条十 KB 上下，没有哪条路会拦它。
+    // 代价是多跑几趟，但比"永远传不上去"强得多，而且不猜就不会猜错。
+    function sendBatch(items, append) {
+      var body = { action: 'work.push', fam: s.fam, dev: s.dev, items: items };
+      if (append) body.append = true;
+      return postOnce(body).then(function (data) {
+        // 只有**真正发成功的那一层**记账。拆开重试时，账由成功的那两层各记各的；
+        // 记在拆分的上一层会把同一批算两遍，界面上的进度就成了假的。
+        // 搭车带回来的批改结果同样只在成功那一层收 ✓
+        if (data && data.grades && data.grades.length) grades = grades.concat(data.grades);
+        // 云端说"装不下了"的条数。每批各报各的，要累加 ——
+        // 空间是逐批消耗掉的，后面的批可能整批都塞不进去。
+        if (data && typeof data.full === 'number') full += data.full;
+        items.forEach(function (it) { doneIds.push(it.id); });
+        sent += items.length;
+        batchNo++;
+        if (typeof onProgress === 'function') {
+          onProgress({
+            batch: batchNo,
+            batches: Math.max(batches.length, batchNo),   // 拆出来的趟数也要算进去
+            sent: sent, total: todo.length
+          });
+        }
+      }, function (e) {
+        if (items.length <= 1) throw e;   // 一条都过不去：那不是体积的事，是真失败了
+        var half = Math.ceil(items.length / 2);
+        // 左半继续扛"覆盖"的角色（如果正轮到它），右半一定往上垒
+        return sendBatch(items.slice(0, half), append).then(function () {
+          return sendBatch(items.slice(half), true);
         });
+      });
+    }
+
+    var chain = Promise.resolve();
+    batches.forEach(function (batch) {
+      chain = chain.then(function () {
+        var useAppend = firstDone;
+        firstDone = true;   // 从这一批起（哪怕它会被拆），后面都往上垒
+        return sendBatch(batch, useAppend);
       });
     });
 
     return chain.then(function () {
       lastError = '';
+      // 传完了也**不能**把这份账整份销掉 —— 理由同上：pending 里那些还等着家长批，
+      // 销掉之后每点一次「提交」就整队重传一次（100 多条、二十多批，好几分钟）。
+      // 只摘掉已经不在待批队列里的 id（家长批完就没了），账不会越攒越长。
+      var live = {};
+      all.forEach(function (it) { live[it.id] = 1; });
+      s.workPushed = doneIds.filter(function (id) { return live[id]; });
+      save();                  // 传完了：把"还有没传的"这份账销掉
       if (grades.length && hooks.applyGrades) hooks.applyGrades(grades);
       if (hooks.onStatus) hooks.onStatus();
-      return { ok: true, count: all.length, batches: batches.length };
+      return { ok: true, count: all.length, batches: batches.length, full: full };
     }).catch(function (e) {
-      s.dirty = true;   // 没传上去，下次联网再补（重发会从第一批重新覆盖，不会留半截）
+      s.dirty = true;          // 下次联网再补
+      s.workPushed = doneIds;  // 已经上去的那些记下来，下次只补剩下的
+      save();                  // 同上：不落盘的话，这次失败就再也没人记得要补
       note(e);
-      return { ok: false, error: lastError };
+      return { ok: false, error: lastError, sent: doneIds.length, total: all.length };
     });
   }
 
@@ -338,11 +559,16 @@
 
     var list = s.outbox.slice();
     s.outbox = [];
+    // 立刻落盘：这一刻起"待发的批改"已经是空的了。
+    // 不存的话，post() 那 25 秒里要是页面被关掉，下次打开 outbox 里还有这同一批 ——
+    // 会再发一次（服务端幂等，不会批错，但白白多一趟请求）。
+    save();
     // dev 是"谁在批"（这台设备），grades 里的 dev 是"作业来自哪台设备"——两个不是一回事。
     // 少了外层这个 dev，服务端会以"设备标识不合法"直接拒掉。
     return post({ action: 'grade.push', fam: s.fam, dev: s.dev, grades: list })
       .then(function (data) {
         lastError = '';
+        save();   // 传完再存一次：万一上面那次没写成，这里兜住
         // 回调单独包一层：它要是炸了，不该让"已经交上去的批改"被回滚重发。
         // 网络失败和回调出错是两回事，别混在一起。
         try {
@@ -355,6 +581,7 @@
       })
       .catch(function (e) {
         s.outbox = list.concat(s.outbox || []);   // 没传上去，下次再补
+        save();                                   // 同上：这笔账要在本机
         note(e);
         return { ok: false, error: lastError };
       });
@@ -405,11 +632,29 @@
     return post({ action: 'report.pull', fam: s.fam }).then(function (d) { return d.reports || []; });
   }
 
+  /* ------------------------------ 留言流（家长端写，孩子端读） ------------------------------ */
+
+  // 家长给孩子捎一句话。孩子在首页能看到，点「知道了」后就不再显示（已读记在孩子本机）。
+  // 不做已读回执（少一次写）：云端留言 7 天自动过期、最多留 5 条，重装最多把最近几条再看一遍。
+  function pushNote(text) {
+    if (!on()) return Promise.reject(new Error('没开同步'));
+    var s = sync();
+    return post({ action: 'note.push', fam: s.fam, dev: s.dev, text: String(text || '').slice(0, 200) });
+  }
+
+  // 孩子端拉留言。新的在前。进首页时看一眼就够，不做轮询。
+  function pullNotes() {
+    if (!on()) return Promise.resolve([]);
+    var s = sync();
+    return post({ action: 'note.pull', fam: s.fam }).then(function (d) { return d.notes || []; });
+  }
+
   /* ------------------------------ 清空 ------------------------------ */
 
   function clearDevice() {
     if (!on()) return Promise.resolve();
     var s = sync();
+    s.workPushed = [];   // 云端那份已经清了，"上次传到哪"这笔账也跟着作废旧
     return post({ action: 'clear', fam: s.fam, dev: s.dev });
   }
 
@@ -447,17 +692,20 @@
     // 没有定时器、也不轮询（这是刻意的选择），所以失败之后要给人一条能自己动手的路：
     // 回到前台、或者再点一次提交就会重试。这句得说出来，否则家长只能干等。
     if (isDirty() && lastError) {
-      return '有作业没传上去（' + lastError + '），再点一次提交就会重试';
+      return '有作业没传上去（' + lastError + '），再点一次「提交给家长批改」就会重试';
     }
     if (isDirty()) return '有作业还没传上去';
     if (lastError) return '同步暂不可用（' + lastError + '），数据还在本机';
     if (!s.lastAt) return '已开启，还没同步过';
     var min = Math.floor((nowTs() - s.lastAt) / 60000);
-    if (min < 1) return '已同步 · 刚刚';
-    if (min < 60) return '已同步 · ' + min + ' 分钟前';
+    // 说"已发出"而不是"已同步"：这里记录的只是**这台设备最后一次把请求发出去**的时间，
+    // 不代表对方已经收到了。写"已同步"的话，家长会以为孩子那边已经看到批改结果，
+    // 实际上可能还在路上（或者根本没送到）。
+    if (min < 1) return '已发出 · 刚刚';
+    if (min < 60) return '已发出 · ' + min + ' 分钟前';
     var hr = Math.floor(min / 60);
-    if (hr < 24) return '已同步 · ' + hr + ' 小时前';
-    return '已同步 · ' + Math.floor(hr / 24) + ' 天前';
+    if (hr < 24) return '已发出 · ' + hr + ' 小时前';
+    return '已发出 · ' + Math.floor(hr / 24) + ' 天前';
   }
 
   root.FamilySync = {
@@ -470,6 +718,7 @@
     newCode: newCode,
     codeError: codeError,
     statusText: statusText,
+    checkNetwork: checkNetwork,
     markWorkDirty: markWorkDirty,
     flushWork: flushWork,
     thinStrokes: thinStrokes,
@@ -480,6 +729,8 @@
     pullWork: pullWork,
     pushReport: pushReport,
     pullReports: pullReports,
+    pushNote: pushNote,
+    pullNotes: pullNotes,
     clearDevice: clearDevice,
     isDirty: isDirty
   };

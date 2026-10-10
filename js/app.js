@@ -455,6 +455,9 @@
       '<p class="hero-sub">西师大版 · 四年级上册</p>' +
       '</div>' +
 
+      // 家长捎的话放最上面（有未读时才出现）：孩子进门先看到"家里有人看着我练"
+      notesHtml() +
+
       // 今天的数学放最上面：打开页面第一个要回答的问题是"今天练什么"，
       // 而不是"练哪个单元"。单元选择挪到它下面，想挑单元再往下翻。
       todayCard() +
@@ -1406,6 +1409,169 @@
     });
   }
 
+  /* --------------------------- 家长捎的话（孩子端看） --------------------------- */
+
+  // 进首页时拉一次留言，60 秒内不重复。失败完全静默 —— 留言晚一点看到没关系，
+  // 不能变成一个打扰孩子的报错。不做轮询：关掉页面就一次请求都不发。
+  function pullNotesSoon() {
+    if (!F || !F.on()) return;
+    var now = Date.now();
+    if (now - (app.notesAt || 0) < 60000) return;
+    app.notesAt = now;
+    F.pullNotes().then(function (list) {
+      app.notes = list || [];
+      if (app.view === 'home') render();
+    }).catch(function () { /* 连不上就算了，下次进首页再拉 */ });
+  }
+
+  // 还没读过的留言。已读记在本机（notesRead）—— 不做云端回执，看完就完。
+  function unreadNotes() {
+    var read = {};
+    (app.state.notesRead || []).forEach(function (id) { read[id] = 1; });
+    return (app.notes || []).filter(function (n) { return n && n.id && !read[n.id]; });
+  }
+
+  // 放在首页最上面：留言是"有人看过我练得怎么样"的证明，孩子进门就该看到。
+  function notesHtml() {
+    var list = unreadNotes();
+    if (!list.length) return '';
+    var rows = list.map(function (n) {
+      return '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">' + esc(n.text) + '</span></div>' +
+        '<div class="kp-foot"><span>家长捎的话 · ' + esc(fmtTime(n.ts)) + '</span></div>' +
+        '</div>';
+    }).join('');
+    return '<div class="card">' +
+      '<h2 class="card-title">家长捎的话</h2>' +
+      rows +
+      '<button class="btn btn-soft btn-block" data-act="note-ack">知道了</button>' +
+      '</div>';
+  }
+
+  function ackNotes() {
+    var read = app.state.notesRead = app.state.notesRead || [];
+    (app.notes || []).forEach(function (n) {
+      if (n && n.id && read.indexOf(n.id) < 0) read.push(n.id);
+    });
+    // 云端最多留 5 条留言，本机的已读记录也封个顶，别随年份慢慢涨
+    while (read.length > 50) read.shift();
+    saveState();
+    return render();
+  }
+
+  /* --------------------------- 家长端：本周小结 + 捎句话 --------------------------- */
+
+  // 挑战档（0.56~0.70 那一档）的题做得怎么样。templateId → 档位查一次表。
+  var TIER_OF_TPL = null;
+  function tierLevelOf(templateId) {
+    if (!TIER_OF_TPL) {
+      TIER_OF_TPL = {};
+      T.TEMPLATES.forEach(function (t) {
+        var tier = K.tierOf(t.difficulty);
+        TIER_OF_TPL[t.id] = tier ? tier.level : 0;
+      });
+    }
+    return TIER_OF_TPL[templateId] || 0;
+  }
+
+  // 家长打开报告，第一眼看到的不是流水账，是"和上周比怎么样"。
+  // 只用本机 history/sessions 就能算，没开同步也有。
+  function weeklySummaryHtml(state) {
+    var hist = state.history || [];
+    var sessions = state.sessions || [];
+    if (!hist.length) return '';
+    var now = Date.now(), D = 24 * 3600 * 1000;
+    var inWin = function (h, lo, hi) { return h.ts > now - lo * D && h.ts <= now - (hi || 0) * D; };
+    var tw = hist.filter(function (h) { return inWin(h, 7); });
+    var lw = hist.filter(function (h) { return inWin(h, 14, 7); });
+    if (!tw.length && !lw.length) return '';
+
+    var twSessions = sessions.filter(function (s) { return (s.endedAt || s.startedAt) > now - 7 * D; }).length;
+    function pct(list) {
+      if (!list.length) return '—';
+      var ok = list.filter(function (h) { return h.isCorrect; }).length;
+      return Math.round(ok / list.length * 100) + '%';
+    }
+    // 挑战档：孩子最需要被看见的进步就是"敢做难题了"
+    function chal(list) {
+      var c = list.filter(function (h) { return tierLevelOf(h.templateId) === 3; });
+      if (!c.length) return '还没做到';
+      var ok = c.filter(function (h) { return h.isCorrect; }).length;
+      return c.length + ' 题对 ' + ok + ' 题';
+    }
+    // 本周最常错的错因：给家长一句"能接得住的话头"
+    var tags = {};
+    tw.forEach(function (h) {
+      if (h.isCorrect) return;
+      tagsOf(h).forEach(function (t) { tags[t] = (tags[t] || 0) + 1; });
+    });
+    var top = '', topN = 0;
+    Object.keys(tags).forEach(function (t) { if (tags[t] > topN) { topN = tags[t]; top = t; } });
+
+    var rows = '<div class="kp-row">' +
+      '<div class="kp-head"><span class="kp-name">近 7 天</span>' +
+      '<span class="kp-label">' + pct(tw) + '</span></div>' +
+      '<div class="kp-foot"><span>练了 ' + twSessions + ' 场 · ' + tw.length + ' 题</span>' +
+      '<span>挑战题：' + chal(tw) + '</span></div></div>';
+    if (lw.length) {
+      rows += '<div class="kp-row">' +
+        '<div class="kp-head"><span class="kp-name">上一个 7 天</span>' +
+        '<span class="kp-label">' + pct(lw) + '</span></div>' +
+        '<div class="kp-foot"><span>' + lw.length + ' 题</span>' +
+        '<span>挑战题：' + chal(lw) + '</span></div></div>';
+    }
+    return '<div class="card">' +
+      '<h2 class="card-title">本周小结</h2>' + rows +
+      (top ? '<p class="card-note">这周最常错：' +
+        esc((T.ERROR_TAGS[top] || { label: top }).label) + (topN > 1 ? '（' + topN + ' 次）' : '') +
+        ' —— 捎句话的时候可以从这儿聊起。</p>' : '') +
+      '</div>';
+  }
+
+  // 捎话卡：家长写一句，孩子首页看到。没开同步就不显示 —— 开启的入口在同步页。
+  function noteCardHtml() {
+    if (!F || !F.on()) return '';
+    var quick = ['今天真棒，继续加油！', '错题不丢人，明天再试一次。', '做题慢一点，看清题目再下手。'];
+    return '<div class="card">' +
+      '<h2 class="card-title">给孩子捎句话</h2>' +
+      '<p class="card-note">发出去之后，孩子打开首页就能看到，点「知道了」就收起来。最多留 5 条，7 天自动过期。</p>' +
+      '<input id="noteInput" class="pass-input" type="text" maxlength="200" autocomplete="off" ' +
+      'placeholder="写一句话给孩子（200 字以内）" value="' + esc(app.noteInput || '') + '">' +
+      '<div class="unit-row">' + quick.map(function (q) {
+        return '<button class="unit-btn" data-act="note-quick" data-q="' + esc(q) + '">' + esc(q) + '</button>';
+      }).join('') + '</div>' +
+      '<button class="btn btn-primary btn-block" data-act="send-note">捎给孩子</button>' +
+      (app.noteMsg ? '<div class="feedback ' + (app.noteOk === false ? 'warn' : 'ok') + '">' + esc(app.noteMsg) + '</div>' : '') +
+      '</div>';
+  }
+
+  function sendNote() {
+    var txt = (app.noteInput || '').trim();
+    if (!txt) {
+      app.noteMsg = '先写一句话，或者点一句快捷语。';
+      app.noteOk = false;
+      return render();
+    }
+    if (!F || !F.on()) {
+      app.noteMsg = '还没开跨设备同步 —— 先在「跨设备同步」里把家庭码填上。';
+      app.noteOk = false;
+      return render();
+    }
+    app.noteMsg = '正在发送…';
+    app.noteOk = null;
+    render();
+    F.pushNote(txt).then(function () {
+      app.noteMsg = '已经捎给孩子了。';
+      app.noteOk = true;
+      app.noteInput = '';
+      return render();
+    }).catch(function (e) {
+      app.noteMsg = '没发出去（' + ((e && e.message) || '网络不通') + '）。再点一次就会重试。';
+      app.noteOk = false;
+      return render();
+    });
+  }
+
   /* ============================== 会话流程 ============================== */
   function currentQuestion() {
     return app.session ? app.session.questions[app.cursor] : null;
@@ -2087,6 +2253,10 @@
       '<button class="btn btn-ghost btn-block" data-act="reload-report">刷新（看看有没有新数据）</button>' +
       '</div>' +
 
+      // 本周小结 + 捎话：家长打开报告第一眼看到"和上周比怎么样"，顺手就能回一句
+      weeklySummaryHtml(state) +
+      noteCardHtml() +
+
       '<div class="card">' +
       '<h2 class="card-title">总览</h2>' +
       (hist.length
@@ -2187,6 +2357,8 @@
       app.passMsg = '';
       app.afterUnlock = '';
     }
+    // 进首页顺手看一眼有没有家长的新留言（内部有 60 秒节流，失败静默）
+    if (app.view === 'home') pullNotesSoon();
     var html = app.view === 'home' ? viewHome()
       : app.view === 'practice' ? viewPractice()
         : app.view === 'result' ? viewResult()
@@ -2227,6 +2399,7 @@
     // 口令框同理：只记账不 render，否则打一个字失焦一次，根本没法输完
     if (t.id === 'passInput') app.passInput = t.value;
     if (t.id === 'famInput') app.famInput = t.value;
+    if (t.id === 'noteInput') app.noteInput = t.value;
   }
 
   // 口令这一关过了：从首页「跨设备同步」点进来的，直奔同步页；
@@ -2276,6 +2449,10 @@
     if (act === 'resume') return resumeDraft();
     if (act === 'drop-draft') { clearDraft(); return render(); }
     if (act === 'submit-report') return submitReport();
+    // 家长捎话：快捷语填进输入框（可以再改），发送、孩子端看完收起
+    if (act === 'note-quick') { app.noteInput = t.getAttribute('data-q') || ''; return render(); }
+    if (act === 'send-note') return sendNote();
+    if (act === 'note-ack') return ackNotes();
     if (act === 'my-records') { app.submitMsg = ''; app.view = 'records'; return render(); }
     // 报告里切"看哪一段时间"（今天 / 7 天 / 30 天 / 全部）
     if (act === 'range') { app.range = t.getAttribute('data-r') || '7'; return render(); }
