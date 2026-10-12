@@ -3,3 +3,6 @@ tests/
 scripts/
 docs/
 node_modules/
+
+# 文件夹专属图标配置（本机桌面显示用）
+desktop.ini
