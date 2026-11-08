@@ -131,6 +131,47 @@
     BOUND_JUDGE: { label: '差一点就算"正好"', advice: '够不够是精确的比较：差一张也不行，一张不多才算正好。比完再下结论。' },
     HAND_FROZEN: { label: '忘了时针自己也在走', advice: '分针走的时候时针也在慢慢走，半小时正好走半个大格。先看清时针的位置再算夹角。' },
     CLOCK_GRID: { label: '数大格时把半格丢了', advice: '钟面每一大格是 30°，时针走的半格也有 15°。把整格和半格分开数，别丢。' },
+    // ---- 第四单元 卷子上的辨析题（判一判 / 选一选 / 找规律）----
+    // 这一批对的是《单元检测试卷》第四单元的前三段。它们的共同点是：
+    // 一道都不用"算出一个大数"，考的是说法对不对、位数够不够、两个式子等不等。
+    TRAILING_ZERO_RULE: { label: '以为积末尾的 0 一定等于两个因数末尾 0 的个数之和', advice: '有效部分自己带 0 的时候（25 × 4 = 100），积末尾的 0 会比补上去的多。先算出有效部分的积，再看它末尾有没有 0。' },
+    ZERO_RULE_TOO_STRICT: { label: '明明相等却判成了不相等', advice: '两个因数末尾 0 的个数加起来，正好等于积末尾 0 的个数 —— 这道题就是这种情况。' },
+    PLACE_UNIT: { label: '用十位去乘，结果该表示"个十"', advice: '十位上的 2 去乘 306 得 612，这个 612 是 612 个十（也就是 6120），不是 612 个一。' },
+    PLACE_UNIT_OVER: { label: '明明说对了却判成了错', advice: '用十位上的数去乘，得到的数表示的是"多少个十" —— 这句话是对的。' },
+    DIGIT_COUNT_WRONG: { label: '积是几位数数错了', advice: '两位数 × 两位数：最小 10 × 10 = 100（三位），最大 99 × 99 = 9801（四位）。三位数 × 两位数：最小 100 × 10 = 1000（四位）。' },
+    MIN_DIGIT_WRONG: { label: '□ 里能填的最小数推错了', advice: '从 1 开始一个一个试，哪个先够四位数就是哪个；也可以先算"至少要多大"，再定 □。' },
+    EQUIV_WRONG: { label: '没看出哪个算式和原式的结果对不上', advice: '一个因数乘几、另一个因数除以几，积不变；两个因数都乘，积要乘两次。逐项算一算再选。' },
+    HEAD_TAIL_WRONG: { label: '头同尾合十的规律用错了', advice: '头乘（头 + 1）写在前面，两个尾相乘写在后面；尾相乘不满 10 要补 0 占位（1 × 9 = 9，要写成 09）。' },
+    // ---- 第一单元：计数单位的进率（平测填空的第一道常常就是它）----
+    CARRY_LEVEL_OFF: { label: '两个单位隔了几级数错了', advice: '把单位按顺序排一遍：个、十、百、千、万、十万、百万、千万、亿。隔一级是 10，隔两级是 100，隔三级是 1000。' },
+    CARRY_ZERO_COUNT: { label: '0 的个数对不上', advice: '相邻两个计数单位之间差一个 0。写完数一数 0 的个数，和两个单位的位置对一对。' },
+    EQUAL_SIGN_WRONG: { label: '该写"等于"的地方写成了"约等于"', advice: '改写只是换个说法，数一点没变，要用"="。只有省掉了尾数、数的大小变了，才写"≈"。' },
+    PERP_ONLY_ONE: { label: '以为垂线能画好几条', advice: '垂足的位置是唯一的：从这一点垂直下去，只会在直线上碰到一个点。点和垂足都定死了，那条垂线也就只有一条。' },
+    // ---- 第二单元：对折 / 倍角 ----
+    FOLD_ONCE_ONLY: { label: '只折了一次', advice: '对折一次是把角分成 2 份，再对折一次就分成 4 份。题目问"再对折一次"，要在上一次的基础上再除以 2。' },
+    FOLD_NOT_HALF: { label: '以为对折之后度数不变', advice: '对折是让两条边完全重合，角被折痕分成两个一样大的角，所以每个角是原来的一半。' },
+    // ---- 第三单元：两条直线相交成的四个角 ----
+    OPPOSITE_AS_NEIGHBOR: { label: '把相对的那个角当成相邻的了', advice: '相对的两个角（对顶角）一样大，不用减；相邻的两个角合起来是 180°，才要用减法。' },
+    NEIGHBOR_SAME: { label: '以为相邻的两个角也一样大', advice: '只有相对的两个角一样大。相邻的两个角一大一小，合起来正好是 180°。' },
+    // ---- 第五单元：相遇问题 ----
+    MEET_SINGLE_SPEED: { label: '只用了其中一个人的速度', advice: '相向而行是两个人一起把这段路走完的。先算出"一分钟两人合起来走多少米"（两个速度相加），再乘时间。' },
+    MEET_ADD_TIME: { label: '把两个人的时间加起来了', advice: '两人是同时出发的，走的时间就是那一个时间，不用相加。要加的是速度，不是时间。' },
+    MEET_SUM_WRONG: { label: '速度和算错了', advice: '两个速度相加是这一步的全部内容，加完可以估一估：两个人合起来一分钟该比任何一个人单独走得多。' },
+    // ---- 第五单元：两种包装比单价 ----
+    PACKAGE_DIRECTION: { label: '划算的那一种选反了', advice: '每袋（每包）的钱越少越划算。两个单价都算出来，再比大小，别看总价高低。' },
+    PACKAGE_UNIT_RATE: { label: '每袋的单价算错了', advice: '总价 ÷ 袋数 = 每袋多少元。这一步是平均分，用除法。' },
+    // ---- 第五单元：剩下的钱还能买几个 ----
+    LEFT_TOTAL_AS_LEFT: { label: '拿总钱数直接去除，没先减掉花掉的', advice: '先算已经花了多少，用总钱数减掉才是"还剩的钱"，再用剩下的钱去除单价。' },
+    // ---- 第六单元：面积的变化与铺砖 ----
+    AREA_GROW_WRONG: { label: '把增加的面积算成了整块面积', advice: '问"增加了多少"，只算多出来那一条：增加的长 × 原来的宽。原来的那一块没有变。' },
+    AREA_GROW_USE_LENGTH: { label: '拿增加的长去乘了原来的长', advice: '多出来的是一条窄条，它的宽是原来那个宽，不是长。长 × 宽里，宽一直没变。' },
+    TILE_UNIT_MISS: { label: '平方米和平方分米没统一就除了', advice: '房间的面积用平方米，地砖的面积用平方分米 —— 先把房间面积换成平方分米（1 平方米 = 100 平方分米），再去除。' },
+    TILE_SIZE_WRONG: { label: '地砖的面积算成了周长', advice: '方砖的面积是边长 × 边长。边长 × 4 那是它的周长，不是面积。' },
+    SIDE_SCALE_LINEAR: { label: '边长扩大几倍，面积也当成了几倍', advice: '面积是边长 × 边长，两个边长都变大，所以要乘两次：边长扩大 3 倍，面积扩大 3 × 3 = 9 倍。' },
+    UNIT_CHOICE_WRONG: { label: '面积单位选得不合适', advice: '教室、房间这类用平方米；桌面、书本用平方分米；指甲盖、邮票用平方厘米。先想这个东西有多大，再挑单位。' },
+    // ---- 第七单元：一格代表几 ----
+    CELL_TOO_SMALL: { label: '一格代表得太少，格子不够画', advice: '条形统计图一般只有十来格。一格代表太少，最大的那个数就会超出纸外 —— 先看最大的数，再定一格代表几。' },
+    CELL_TOO_MANY: { label: '一格代表得太多，小数目看不出来', advice: '一格代表太多，小一点的数就只剩半格、甚至看不出来。让最小的数至少能占上一两格。' },
     OTHER: { label: '再算一遍试试', advice: '' }
   };
 
@@ -3173,6 +3214,392 @@
     };
   }
 
+  /* ============================================================
+     卷子题型（第四单元 两、三位数乘两位数）
+     ------------------------------------------------------------
+     上面所有模板考的是"会不会算"，而《单元检测试卷》第四单元六段里的
+     填一填 / 判一判 / 选一选 / 找规律，考的是"会不会想"：
+
+       判一判：两个因数末尾一共有几个 0，积的末尾就一定有几个 0。（　）
+       判一判：306 × 25，十位上的 2 乘 306 得 612，表示 612 个十。（　）
+       选一选：45 × □6 的积是四位数，□ 里最小填几？
+       选一选：与 208 × 30 的结果不相等的是（　）
+       找规律：12 × 18 = 216，26 × 24 = 624 …… 31 × 39 = ?
+
+     这些题一道都不用"算出个大数"，但四段加起来占了卷面一半的分。
+     原来的模板一条都覆盖不到 —— 孩子练得再顺，一上卷子照样掉。
+
+     所以这一批不追难度，追的是"题型和卷子对得上"。难度值按档位放：
+     辨析类落在巩固/挑战，找规律落在拓展（它就是教材 P53 那一层）。
+
+     判断题也走错因探针：说错的那一句，按它错在哪给标签，
+     不笼统记一个"判断错" —— 判反了和判对了是两件完全不同的事。
+     ============================================================ */
+
+  // 判一判①：积末尾 0 的个数，是否等于两个因数末尾 0 的个数之和
+  // 这是本单元最经典的一句"看着对、其实常错"的话：
+  // 25 × 40 = 1000，两个因数末尾一共只有 1 个 0，积末尾却有 3 个。
+  function familyJudgeZeroRule(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        // 一半出"有效部分自己带 0"的（这句话就错），一半出不带的（这句话就对）
+        var hidden = rng() < 0.5;
+        var aCore, bCore;
+        if (hidden) {
+          var pairs = [[25, 4], [15, 2], [5, 6], [125, 8], [25, 8], [15, 4], [35, 2]];
+          var pk = pairs[Math.floor(rng() * pairs.length)];
+          aCore = pk[0]; bCore = pk[1];
+        } else {
+          // 有效部分的积本身不能是整十数，否则这句话就成了"对"，
+          // 而且孩子也说不清它到底为什么对
+          var guard = 0;
+          do {
+            aCore = pickCore(rng, 12, 98);
+            bCore = pickCore(rng, 12, 98);
+            guard++;
+          } while ((aCore * bCore) % 10 === 0 && guard < 300);
+        }
+        var aZeros = pickInt(rng, 0, 1);
+        var bZeros = pickInt(rng, 0, 1);
+        if (aZeros + bZeros === 0) bZeros = 1;   // 至少要有一个 0，否则这题不是在问末尾 0
+
+        var a = aCore * Math.pow(10, aZeros);
+        var b = bCore * Math.pow(10, bZeros);
+        var core = aCore * bCore;
+        var answer = a * b;
+        var totalZeros = aZeros + bZeros;
+        var realZeros = countZeros(answer);
+        var isTrue = realZeros === totalZeros;
+
+        return {
+          stem: '因为 ' + a + ' 和 ' + b + ' 的末尾一共有 ' + totalZeros + ' 个 0，' +
+            '所以 ' + a + ' × ' + b + ' 的积的末尾也有 ' + totalZeros + ' 个 0。（判断对错）',
+          steps: [
+            {
+              id: 'calc', tier: 1, type: 'number',
+              prompt: '先不看末尾的 0：' + aCore + ' × ' + bCore + ' = ?',
+              answer: core,
+              distractors: [],
+              hint: '把两个因数末尾的 0 都先去掉，只算前面的部分。',
+              teach: [aCore + ' × ' + bCore + ' = ' + core]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '这句话对不对？',
+              answer: isTrue ? 1 : 2,
+              options: shuffle(rng, [
+                { value: 1, label: '对', tag: isTrue ? null : 'TRAILING_ZERO_RULE' },
+                { value: 2, label: '错', tag: isTrue ? 'ZERO_RULE_TOO_STRICT' : null }
+              ]),
+              hint: '自己算一算这个积到底是多少，再数它末尾有几个 0。',
+              teach: [
+                '① ' + aCore + ' × ' + bCore + ' = ' + core,
+                '② 补上 ' + totalZeros + ' 个 0，积是 ' + answer,
+                '③ ' + answer + ' 的末尾其实有 ' + realZeros + ' 个 0，' +
+                  (isTrue
+                    ? '和两个因数末尾 0 的个数一样，所以这句话对。'
+                    : '比两个因数末尾 0 的个数多 —— 因为 ' + core + ' 自己末尾就带了 0，所以这句话是错的。')
+              ]
+            }
+          ],
+          facts: { kind: 'judge-zero', a: a, b: b, expect: isTrue ? 1 : 2, isTrue: isTrue }
+        };
+      }
+    };
+  }
+
+  // 判一判②：用十位上的数去乘，得到的是"多少个十"还是"多少个一"
+  // 卷子原题：306 × 25 中，十位上的 2 乘 306 得 612，表示 612 个十。（　）
+  // 这一问不考计算，考的是"这一行数字站在哪一位上" —— 竖式里最容易含糊的一步。
+  function familyJudgePlaceValue(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = pickInt(rng, 103, 989);          // 三位数被乘数
+        var d = pickInt(rng, 2, 9);              // 乘数十位上的数
+        var u = pickInt(rng, 1, 9);
+        var b = d * 10 + u;
+        var p = a * d;
+        var sayTen = rng() < 0.5;                // true = 说"个十"（对），false = 说"个一"（错）
+        var unit = sayTen ? '十' : '一';
+
+        return {
+          stem: '计算 ' + a + ' × ' + b + ' 时，用十位上的 ' + d + ' 去乘 ' + a + ' 得 ' + p +
+            '，这个 ' + p + ' 表示 ' + p + ' 个' + unit + '。（判断对错）',
+          steps: [
+            {
+              id: 'calc', tier: 1, type: 'number',
+              prompt: '先算 ' + a + ' × ' + d + ' = ?',
+              answer: p,
+              distractors: [],
+              hint: '十位上的 ' + d + ' 去乘被乘数的每一位。',
+              teach: [a + ' × ' + d + ' = ' + p]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '这句话对不对？',
+              answer: sayTen ? 1 : 2,
+              options: shuffle(rng, [
+                { value: 1, label: '对', tag: sayTen ? null : 'PLACE_UNIT_OVER' },
+                { value: 2, label: '错', tag: sayTen ? 'PLACE_UNIT' : null }
+              ]),
+              hint: '想一想：用十位上的数乘出来的那一行，写的时候末尾要让出一个位置给谁？',
+              teach: [
+                '用个位去乘，得的是"多少个一"；用十位去乘，得的是"多少个十"。',
+                p + ' 个十 = ' + (p * 10) + '，所以这一行末尾要空一位再写。',
+                sayTen ? '题目说的是"个十"，这句话是对的。' : '题目说的是"个一"，应该是"个十"，所以这句话是错的。'
+              ]
+            }
+          ],
+          facts: { kind: 'judge-place', a: a, b: b, expect: sayTen ? 1 : 2, isTrue: sayTen }
+        };
+      }
+    };
+  }
+
+  // 选一选①：积是几位数
+  // 卷子原题：两位数乘两位数，积可能是（　）位数；三位数乘两位数，积最少是（　）位数。
+  // 孩子容易记死"一定四位" —— 而 10 × 10 = 100 正好是三位。
+  function familyDigitCount(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        // 两位数乘两位数，积绝大多数是四位数 —— 均匀取数的话这道题永远只有一个答案，
+        // 问了等于没问。所以一半的机会取"小的一对"（11~31 相乘一定还是三位数），
+        // 让三/四位数各占一半，这道题才有区分度。
+        var small = spec.small && rng() < 0.5;
+        var a = small ? pickInt(rng, spec.small.aMin, spec.small.aMax) : pickInt(rng, spec.aMin, spec.aMax);
+        var b = small ? pickInt(rng, spec.small.bMin, spec.small.bMax) : pickInt(rng, spec.bMin, spec.bMax);
+        var p = a * b;
+        var n = String(p).length;
+
+        var cands = [n, n - 1, n + 1, n + 2].filter(function (v) { return v >= 3 && v <= 6; }).slice(0, 3);
+        var options = shuffle(rng, cands).map(function (v) {
+          return { value: v, label: v + ' 位数', tag: v === n ? null : 'DIGIT_COUNT_WRONG' };
+        });
+
+        return {
+          stem: '不计算，判断 ' + a + ' × ' + b + ' 的积是几位数。',
+          steps: [
+            {
+              id: 'lo', tier: 1, type: 'number',
+              prompt: '这类数里最小的一对相乘：' + spec.loA + ' × ' + spec.loB + ' = ?',
+              answer: spec.loA * spec.loB,
+              distractors: [],
+              hint: '先看"最少能有几位"，再看具体这道题。',
+              teach: [spec.loA + ' × ' + spec.loB + ' = ' + (spec.loA * spec.loB)]
+            },
+            {
+              id: 'hi', tier: 1, type: 'number',
+              prompt: '最大的一对相乘：' + spec.hiA + ' × ' + spec.hiB + ' = ?',
+              answer: spec.hiA * spec.hiB,
+              distractors: [],
+              hint: '最大的这一类数相乘，就是这类题位数最多的那一头。',
+              teach: [spec.hiA + ' × ' + spec.hiB + ' = ' + (spec.hiA * spec.hiB)]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: a + ' × ' + b + ' 的积是几位数？',
+              answer: n,
+              options: options,
+              hint: '先估一估它落在哪一头：这类数最小的一对、最大的一对。',
+              teach: [
+                '最小 ' + spec.loA + ' × ' + spec.loB + ' = ' + (spec.loA * spec.loB),
+                '最大 ' + spec.hiA + ' × ' + spec.hiB + ' = ' + (spec.hiA * spec.hiB),
+                '所以这类题的积只可能是几位数之间的那几个；' + a + ' × ' + b + ' = ' + p + '，是 ' + n + ' 位数。'
+              ]
+            }
+          ],
+          facts: { kind: 'digit-count', a: a, b: b, expect: n }
+        };
+      }
+    };
+  }
+
+  // 选一选②：□ 里最小填几（逆向）
+  // 卷子原题：45 × □6 的积是四位数，□ 里最小填（　）。
+  // 正着是"算出来看几位"，倒着是"要凑够几位，先得大到多少" —— 这是两种思维。
+  function familyMinDigit(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var u = spec.tail;
+        var a, d = null, i;
+        for (var t = 0; t < 400; t++) {
+          a = pickInt(rng, spec.aMin, spec.aMax);
+          d = null;
+          for (i = 1; i <= 9; i++) {
+            var val = a * (i * 10 + u);
+            if (val >= 1000) { d = i; break; }
+          }
+          // 要保证：填 1 不够四位数（所以不是白送），填 9 也不会超成五位数
+          if (d !== null && d >= 2 && a * (90 + u) <= 9999) break;
+          d = null;
+        }
+        if (d === null) d = 2;
+
+        var first = a * (10 + u);       // 填 1 的时候
+        var atMin = a * (d * 10 + u);   // 填到最小的那个 d
+        var distractors = dedupeDistractors(d, [
+          { value: d - 1, tag: 'MIN_DIGIT_WRONG' },
+          { value: d + 1, tag: 'MIN_DIGIT_WRONG' }
+        ]);
+
+        return {
+          stem: a + ' × □' + u + ' 的积是四位数，□ 里最小填几？',
+          steps: [
+            {
+              id: 'try1', tier: 1, type: 'number',
+              prompt: '先试试 □ 填 1：' + a + ' × ' + (10 + u) + ' = ?',
+              answer: first,
+              distractors: [],
+              hint: '□ 从最小的 1 开始，一个一个往上试。',
+              teach: [a + ' × ' + (10 + u) + ' = ' + first + '，' + String(first).length + ' 位数，还不够。']
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '□ 里最小填几？',
+              answer: d,
+              distractors: distractors,
+              hint: '接着往上试：填 2、填 3…… 哪一个先够四位数，就是它。',
+              teach: [
+                '填 1 时 ' + a + ' × ' + (10 + u) + ' = ' + first + '，是 ' + String(first).length + ' 位数，不够；',
+                '填 ' + d + ' 时 ' + a + ' × ' + (d * 10 + u) + ' = ' + atMin + '，正好四位数。',
+                '所以 □ 里最小填 ' + d + '。'
+              ]
+            }
+          ],
+          facts: { kind: 'min-digit', a: a, b: d * 10 + u, expect: d }
+        };
+      }
+    };
+  }
+
+  // 选一选③：与某个算式结果不相等的是哪一个
+  // 卷子原题：与 208 × 30 的结果不相等的是（　）A.208×3×10 B.2080×3 C.208×3×3
+  // 三个选项里两个是"同一个积换了个样子"，一个是真变了 —— 考的是等价变形。
+  function familyNotEqual(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = pickInt(rng, 104, 309);
+        var k = pickInt(rng, 2, 9);
+        var n = k * 10;
+        // a × k × 3 一定不等于 a × n（除非 3 = 10），所以它永远是"不相等"的那个
+        var opts = shuffle(rng, [
+          { value: 1, label: a + ' × ' + k + ' × 10', same: true },
+          { value: 2, label: (a * 10) + ' × ' + k, same: true },
+          { value: 3, label: a + ' × ' + k + ' × 3', same: false }
+        ]);
+        var answer = 0;
+        opts.forEach(function (o) { if (!o.same) answer = o.value; });
+
+        return {
+          stem: '下面各式中，与 ' + a + ' × ' + n + ' 的结果不相等的是（　）。',
+          steps: [
+            {
+              id: 'base', tier: 1, type: 'number',
+              prompt: '先算原式：' + a + ' × ' + n + ' = ?',
+              answer: a * n,
+              distractors: [],
+              hint: '先把原来那个算式算出来，再逐个去对。',
+              teach: [a + ' × ' + n + ' = ' + (a * n)]
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: '哪个算式的结果和 ' + (a * n) + ' 不相等？',
+              answer: answer,
+              options: opts.map(function (o) {
+                return { value: o.value, label: o.label, tag: o.same ? 'EQUIV_WRONG' : null };
+              }),
+              hint: '一个因数乘几、另一个因数除以几，积不变；两个因数都乘，积要乘两次。',
+              teach: [
+                '原式 ' + a + ' × ' + n + ' = ' + (a * n),
+                a + ' × ' + k + ' × 10 = ' + (a * n) + '（把 ' + n + ' 拆成 ' + k + ' × 10）',
+                (a * 10) + ' × ' + k + ' = ' + (a * n) + '（' + a + ' 乘 10、' + n + ' 除以 10，积不变）',
+                a + ' × ' + k + ' × 3 = ' + (a * k * 3) + '，它比原式少了 3 倍多，只有它不相等。'
+              ]
+            }
+          ],
+          // 这里不写 expect：正确答案的标签是算式（"153 × 7 × 3"），
+          // 引擎测试会把标签里的 "a × b" 拆出来和 expect 相乘对比，
+          // 写一个序号进 expect 只会让它比出一个假失败。
+          facts: { kind: 'equiv', a: a, b: n }
+        };
+      }
+    };
+  }
+
+  // 找规律：头同尾合十（教材 P53 那一层，卷子第五段原题）
+  // 12 × 18 = 216：头 1 × (1+1) = 2 写前面，尾 2 × 8 = 16 写后面。
+  // 最容易漏的是"尾相乘不满 10 要补 0"：31 × 39 → 尾 1 × 9 = 9，要写成 09，答案是 1209。
+  function familyHeadTail(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var t = pickInt(rng, 2, 9);       // 相同的十位
+        var u1 = pickInt(rng, 1, 9);
+        var u2 = 10 - u1;                  // 两个个位相加正好是 10
+        var a = t * 10 + u1;
+        var b = t * 10 + u2;
+        var head = t * (t + 1);
+        var tail = u1 * u2;
+        var answer = head * 100 + tail;
+        if (tail >= 10) answer = head * 100 + tail;
+
+        var distractors = dedupeDistractors(answer, [
+          { value: head * 100 + (tail % 10), tag: 'HEAD_TAIL_WRONG' },   // 尾没补 0
+          { value: t * t * 100 + tail, tag: 'HEAD_TAIL_WRONG' },         // 头忘了 +1
+          { value: a * b + 10, tag: 'HEAD_TAIL_WRONG' }
+        ]);
+
+        return {
+          stem: '观察：12 × 18 = 216，26 × 24 = 624，43 × 47 = 2021。' +
+            '照这样的规律，' + a + ' × ' + b + ' = ?',
+          steps: [
+            {
+              id: 'head', tier: 1, type: 'number',
+              prompt: '头乘（头 + 1）：' + t + ' × ' + (t + 1) + ' = ?',
+              answer: head,
+              distractors: [],
+              hint: '十位上的数，乘"它自己加 1"。',
+              teach: [t + ' × ' + (t + 1) + ' = ' + head]
+            },
+            {
+              id: 'tail', tier: 1, type: 'number',
+              prompt: '两个个位相乘：' + u1 + ' × ' + u2 + ' = ?',
+              answer: tail,
+              distractors: [],
+              hint: '两个个位相加正好是 10，把它们相乘。',
+              teach: [u1 + ' × ' + u2 + ' = ' + tail]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: a + ' × ' + b + ' = ?',
+              answer: answer,
+              distractors: distractors,
+              hint: '前面写 ' + head + '，后面写 ' + (tail < 10 ? '0' + tail : tail) + '。',
+              teach: [
+                '头：' + t + ' × ' + (t + 1) + ' = ' + head,
+                '尾：' + u1 + ' × ' + u2 + ' = ' + tail,
+                '拼起来：' + head + ' 和 ' + tail + ' → ' + answer +
+                  (tail < 10 ? '（尾不满 10，要补 0 占位，写成 0' + tail + '）' : '')
+              ]
+            }
+          ],
+          facts: { kind: 'head-tail', a: a, b: b, expect: answer }
+        };
+      }
+    };
+  }
+
   /* ============================ 模板清单 ============================ */
   // 每个 spec 都是一个经过手调难度的"骨架"，参数在其中随机。
   //
@@ -3526,6 +3953,1304 @@
             }
           ],
           facts: { kind: 'zero-count', a: a, b: b, prod: prod, expect: ans }
+        };
+      }
+    };
+  }
+
+  /* ============ 平测题型（第一、二、三、五、六、七单元） ============
+   * 2026-11 补。孩子说"比学校平测的水平还低"，竖式笔算现实里天天练、这里不做，
+   * 补的是平测卷子上真正占分的那几类：
+   *   第一单元  计数单位的进率、改写写法辨析（= 还是 ≈）
+   *   第二单元  倍角、对折、补成整角、三角尺叠放
+   *   第三单元  相交成的四个角、过一点画垂线的条数、平行线间的距离
+   *   第五单元  相遇、两种包装比单价、剩下的钱还能买几个
+   *   第六单元  长增加后面积增加多少、铺地砖、边长扩大面积变几倍、粉刷扣门窗、单位选择
+   *   第七单元  三项一起问、一格代表几合适
+   *
+   * 写这批题的规矩和前面一样：干扰项必须是真实的错路，凑不出来就不凑。
+   * 另外这批题都不用 a / b 两个因数，所以 facts 里带 kind + expect，
+   * 让答案校验走"程序算出的那个值"这条分支。
+   */
+
+  // ---- 第一单元 A：1 亿里有几个十（百/千万） ----
+  function familyCarryUnit(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var pairs = [
+          { from: '千万', times: 10, levels: 1 },
+          { from: '百万', times: 100, levels: 2 },
+          { from: '十万', times: 1000, levels: 3 },
+          { from: '万', times: 10000, levels: 4 }
+        ];
+        var p = pairs[pickInt(rng, 0, pairs.length - 1)];
+        var wrongs = [
+          { value: p.times * 10, tag: 'CARRY_ZERO_COUNT' },
+          { value: p.times / 10, tag: 'CARRY_ZERO_COUNT' },
+          { value: p.levels, tag: 'CARRY_LEVEL_OFF' }
+        ];
+        return {
+          stem: '1 亿里面有多少个' + p.from + '？',
+          steps: [
+            {
+              id: 'rate', tier: 1, type: 'choice',
+              prompt: '相邻两个计数单位之间的进率是（　　）。',
+              answer: 10,
+              options: shuffle(rng, [
+                { value: 10, label: '10', tag: null },
+                { value: 100, label: '100', tag: 'CARRY_LEVEL_OFF' },
+                { value: 1000, label: '1000', tag: 'CARRY_LEVEL_OFF' }
+              ]),
+              hint: '满十就进一：十个一万是十万，十个十万是一百万。',
+              teach: ['相邻两个计数单位之间，都是"十个凑成一个"，进率是 10。']
+            },
+            {
+              id: 'count', tier: 0, type: 'number',
+              prompt: '1 亿里面有多少个' + p.from + '？',
+              answer: p.times,
+              distractors: dedupeDistractors(p.times, wrongs),
+              hint: '把单位按顺序排一遍：个、十、百、千、万、十万、百万、千万、亿，数一数 1 亿和它隔了几级。',
+              teach: [
+                '个、十、百、千、万、十万、百万、千万、亿 —— 相邻两个单位进率是 10',
+                '1 亿和' + p.from + '隔了 ' + p.levels + ' 级',
+                '所以 1 亿里面有 ' + p.times + ' 个' + p.from
+              ]
+            }
+          ],
+          facts: { kind: 'carry-unit', from: p.from, times: p.times, expect: p.times }
+        };
+      }
+    };
+  }
+
+  // ---- 第一单元 B：改写写法辨析（48 万 / 480 万 / ≈ 48 万）----
+  function familyRewritePick(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var k = pickInt(rng, 12, 98);
+        var raw = k * 10000;
+        var wrongs = [
+          { label: raw + ' = ' + (k * 10) + ' 万', tag: 'UNIT_ZERO_MORE' },
+          { label: raw + ' ≈ ' + k + ' 万', tag: 'EQUAL_SIGN_WRONG' },
+          { label: raw + ' = ' + k, tag: 'NOT_IN_UNIT' }
+        ];
+        var opts = [{ value: 1, label: raw + ' = ' + k + ' 万', tag: null }];
+        shuffle(rng, wrongs).slice(0, 2).forEach(function (w, i) {
+          opts.push({ value: i + 2, label: w.label, tag: w.tag });
+        });
+
+        return {
+          stem: '把 ' + raw + ' 改写成用"万"作单位的数，下面哪种写法是对的？',
+          steps: [
+            {
+              id: 'zeros', tier: 1, type: 'choice',
+              prompt: '改写成用"万"作单位，要把末尾的几位去掉？',
+              answer: 4,
+              options: shuffle(rng, [
+                { value: 4, label: '末尾四位', tag: null },
+                { value: 5, label: '末尾五位', tag: 'UNIT_ZERO_MORE' },
+                { value: 3, label: '末尾三位', tag: 'UNIT_ZERO_FEW' }
+              ]),
+              hint: '一万是 1 后面跟四个零，"万"这个单位本身就占着四位。',
+              teach: ['万位和个位之间夹着四位（个、十、百、千），所以去掉末尾四位，剩下的就是多少个万。']
+            },
+            {
+              id: 'pick', tier: 0, type: 'choice',
+              prompt: '哪种写法是对的？',
+              answer: 1,
+              options: shuffle(rng, opts),
+              hint: '改写只是换个说法，数的大小一点没变 —— 所以"等于"还是"约等于"，看两边是不是同一个数。',
+              teach: [
+                raw + ' 去掉末尾四位是 ' + k + '，所以 ' + raw + ' = ' + k + ' 万',
+                '写"≈"表示数变了（省掉了尾数），这道题一个尾数也没省'
+              ]
+            }
+          ],
+          facts: { kind: 'rewrite-pick', raw: raw, k: k, expect: k }
+        };
+      }
+    };
+  }
+
+  // ---- 第一单元 C：哪个数最接近 36 万 ----
+  function familyNearestWan(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var w = pickInt(rng, 12, 89);
+        var base = w * 10000;
+        var best = pickInt(rng, 1, 30) * 100;          // 最近的差（100~3000）
+        var used = {};
+        used[best] = 1;
+        var others = [];
+        while (others.length < 3) {
+          var d = best + pickInt(rng, 2, 40) * 100;
+          if (used[d]) continue;
+          used[d] = 1;
+          others.push(rng() < 0.5 ? -d : d);
+        }
+        var cands = [base + best].concat(others.map(function (d) { return base + d; }));
+        var opts = shuffle(rng, cands).map(function (v) {
+          return { value: v, label: String(v), tag: v === base + best ? null : 'WRONG_DIGIT' };
+        });
+        var right = opts.filter(function (o) { return !o.tag; })[0];
+
+        return {
+          stem: '下面哪个数最接近 ' + w + ' 万？',
+          steps: [
+            {
+              id: 'expand', tier: 1, type: 'number',
+              prompt: w + ' 万写成普通写法是多少？',
+              answer: base,
+              distractors: dedupeDistractors(base, [
+                { value: w * 1000, tag: 'UNIT_ZERO_FEW' },
+                { value: w * 100000, tag: 'UNIT_ZERO_MORE' }
+              ]),
+              hint: '"万"就是在这个数后面补四个零。',
+              teach: [w + ' 万 = ' + w + ' 后面补四个 0 = ' + base]
+            },
+            {
+              id: 'pick', tier: 0, type: 'choice',
+              prompt: '哪个数最接近 ' + w + ' 万？',
+              answer: right.value,
+              options: opts,
+              hint: '把每个数都减一减 ' + base + '，差最小的那个最近。',
+              teach: [
+                w + ' 万 = ' + base,
+                '离 ' + base + ' 最近的是 ' + (base + best) + '，只差 ' + best
+              ]
+            }
+          ],
+          facts: { kind: 'nearest-wan', w: w, base: base, best: base + best, expect: base + best }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 A：一个角的 2 倍（先算度数，再判类别）----
+  function familyDoubleAngle(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var deg = pickInt(rng, 18, 84);
+        var twice = deg * 2;
+        var name = twice === 90 ? '直角' : (twice < 90 ? '锐角' : '钝角');
+        var idx = twice === 90 ? 2 : (twice < 90 ? 1 : 3);
+        return {
+          stem: '一个角是 ' + deg + '°。它的 2 倍是多少度？这个角是什么角？',
+          steps: [
+            {
+              id: 'twice', tier: 1, type: 'number',
+              prompt: deg + '° 的 2 倍是多少度？',
+              answer: twice,
+              distractors: dedupeDistractors(twice, [
+                { value: deg * 3, tag: 'TRI_CALC' },
+                { value: deg + 2, tag: 'TRI_CALC' }
+              ]),
+              hint: '2 倍就是两个这样的角合起来，用乘法。',
+              teach: [deg + ' × 2 = ' + twice + '°']
+            },
+            {
+              id: 'kind', tier: 0, type: 'choice',
+              prompt: twice + '° 的角是（　　）。',
+              answer: idx,
+              options: shuffle(rng, [
+                { value: 1, label: '锐角', tag: twice < 90 ? null : (twice > 90 ? 'TYPE_REVERSE' : 'RIGHT_CONFUSE') },
+                { value: 2, label: '直角', tag: twice === 90 ? null : 'RIGHT_CONFUSE' },
+                { value: 3, label: '钝角', tag: twice > 90 ? null : (twice < 90 ? 'TYPE_REVERSE' : 'FLAT_AS_OBTUSE') }
+              ]),
+              hint: '先和直角比一比：比直角小、正好、还是比直角大。',
+              teach: [
+                '比直角小的是锐角，正好 90° 是直角，比直角大又不到 180° 的是钝角',
+                twice + '° 是' + name
+              ]
+            }
+          ],
+          facts: { kind: 'double-angle', deg: deg, twice: twice, expect: twice }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 B：对折两次，每份多少度 ----
+  function familyFoldAngle(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var pool = [80, 100, 120, 140, 160];
+        var deg = pool[pickInt(rng, 0, pool.length - 1)];
+        var half = deg / 2;
+        var quarter = deg / 4;
+        return {
+          stem: '把一个 ' + deg + '° 的角对折，使它的两条边完全重合，折痕把这个角分成两个一样大的角；' +
+            '再把折出来的角对折一次。这时每个角是多少度？',
+          steps: [
+            {
+              id: 'half', tier: 1, type: 'number',
+              prompt: '第一次对折后，每个角是多少度？',
+              answer: half,
+              distractors: dedupeDistractors(half, [
+                { value: deg, tag: 'FOLD_NOT_HALF' },
+                { value: deg - 2, tag: 'TRI_CALC' }
+              ]),
+              hint: '两条边完全重合，就是把这个角平均分成两份。',
+              teach: [deg + ' ÷ 2 = ' + half + '°']
+            },
+            {
+              id: 'quarter', tier: 0, type: 'number',
+              prompt: '再对折一次，每个角是多少度？',
+              answer: quarter,
+              distractors: dedupeDistractors(quarter, [
+                { value: half, tag: 'FOLD_ONCE_ONLY' },
+                { value: deg, tag: 'FOLD_NOT_HALF' }
+              ]),
+              hint: '又对折了一次，份数翻倍，每一份就再小一半。',
+              teach: [
+                '第一次对折：' + deg + ' ÷ 2 = ' + half + '°',
+                '第二次对折：' + half + ' ÷ 2 = ' + quarter + '°'
+              ]
+            }
+          ],
+          facts: { kind: 'fold-angle', deg: deg, half: half, expect: quarter }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 C：和另一个角合起来正好是一个整角 ----
+  function familyAngleToWhole(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var wholes = [
+          { deg: 90, name: '直角', tip: '直角是 90°，就是三角尺上那个方方正正的角。' },
+          { deg: 180, name: '平角', tip: '平角是转半圈，也就是两个直角合起来。' },
+          { deg: 360, name: '周角', tip: '周角是转一整圈，也就是两个平角合起来。' }
+        ];
+        var w = wholes[pickInt(rng, 0, wholes.length - 1)];
+        // 已知角别取到贴着整角的边（163° 配平角这种），那不是"合起来"，是"几乎一样大"
+        var deg = pickInt(rng, 20, Math.min(w.deg - 40, Math.floor(w.deg * 0.7)));
+        var ans = w.deg - deg;
+        return {
+          stem: '一个角是 ' + deg + '°，它和另一个角合起来正好是一个' + w.name + '。另一个角是多少度？',
+          steps: [
+            {
+              id: 'whole', tier: 1, type: 'choice',
+              prompt: w.name + '是多少度？',
+              answer: w.deg,
+              options: shuffle(rng, [
+                { value: 90, label: '90°', tag: w.deg === 90 ? null : 'WHOLE_ANGLE_WRONG' },
+                { value: 180, label: '180°', tag: w.deg === 180 ? null : 'WHOLE_ANGLE_WRONG' },
+                { value: 360, label: '360°', tag: w.deg === 360 ? null : (w.deg === 180 ? 'ROUND_FLAT_MIX' : 'ROUND_MISUSE') }
+              ]),
+              hint: '先想清楚这个整角是转了多少：四分之一圈、半圈，还是一整圈。',
+              teach: [w.tip]
+            },
+            {
+              id: 'rest', tier: 0, type: 'number',
+              prompt: '另一个角是多少度？',
+              answer: ans,
+              distractors: dedupeDistractors(ans, [
+                { value: w.deg + deg, tag: 'ADD_NOT_SUB' },
+                { value: deg, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '整角减去已知的这一块，剩下的就是另一块。',
+              teach: [
+                w.name + '是 ' + w.deg + '°',
+                w.deg + ' - ' + deg + ' = ' + ans + '°'
+              ]
+            }
+          ],
+          facts: { kind: 'angle-to-whole', deg: deg, whole: w.deg, expect: ans }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 D：两个三角尺的角叠在一起，没重合的那一块 ----
+  function familyTriOverlap(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var combos = [[30, 45], [30, 60], [30, 90], [45, 60], [45, 90], [60, 90]];
+        var c = combos[pickInt(rng, 0, combos.length - 1)];
+        var small = c[0], big = c[1];
+        var ans = big - small;
+        return {
+          stem: '用一副三角尺，把一个 ' + small + '° 的角和一个 ' + big + '° 的角叠在一起，' +
+            small + '° 的角整个落在 ' + big + '° 的角里面。两个角没有重合的那一块是多少度？',
+          steps: [
+            {
+              id: 'how', tier: 1, type: 'choice',
+              prompt: '没重合的那一块，是把这两个角怎么样算出来的？',
+              answer: 2,
+              options: shuffle(rng, [
+                { value: 1, label: '加起来', tag: 'ADD_NOT_SUB' },
+                { value: 2, label: '相减', tag: null },
+                { value: 3, label: '相乘', tag: 'COMBO_WRONG' }
+              ]),
+              hint: '小的那个整个躲在大的里面，外面多出来的那一圈才是没重合的。',
+              teach: ['一个角整个落在另一个角里面，多出来的部分 = 大角 - 小角。']
+            },
+            {
+              id: 'rest', tier: 0, type: 'number',
+              prompt: '没重合的那一块是多少度？',
+              answer: ans,
+              distractors: dedupeDistractors(ans, [
+                { value: big + small, tag: 'ADD_NOT_SUB' },
+                { value: big, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '大角减去小角，剩下的就是没被盖住的那一块。',
+              teach: [big + '° - ' + small + '° = ' + ans + '°']
+            }
+          ],
+          facts: { kind: 'tri-overlap', small: small, big: big, expect: ans }
+        };
+      }
+    };
+  }
+
+  // ---- 第三单元 A：两条直线相交成四个角（对顶相等、邻角互补）----
+  function familyCrossAngles(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var deg = pickInt(rng, 20, 80);
+        var rest = 180 - deg;
+        return {
+          stem: '两条直线相交，其中一个角是 ' + deg + '°。和它相对的那个角、和它相邻的那个角，各是多少度？',
+          steps: [
+            {
+              id: 'opposite', tier: 1, type: 'number',
+              prompt: '和它相对的那个角是多少度？',
+              answer: deg,
+              distractors: dedupeDistractors(deg, [
+                { value: rest, tag: 'OPPOSITE_AS_NEIGHBOR' },
+                { value: deg * 2, tag: 'NEIGHBOR_SAME' }
+              ]),
+              hint: '相对的两个角是同一组对顶角，大小一模一样，不用算。',
+              teach: ['两条直线相交，相对的两个角叫对顶角，度数相等。']
+            },
+            {
+              id: 'next', tier: 0, type: 'number',
+              prompt: '和它相邻的那个角是多少度？',
+              answer: rest,
+              distractors: dedupeDistractors(rest, [
+                { value: deg, tag: 'NEIGHBOR_SAME' },
+                { value: 360 - deg, tag: 'OPPOSITE_AS_NEIGHBOR' }
+              ]),
+              hint: '相邻的两个角正好拼成一条直线，合起来是一个平角。',
+              teach: [
+                '相邻两个角合起来是 180°',
+                '180° - ' + deg + '° = ' + rest + '°'
+              ]
+            }
+          ],
+          facts: { kind: 'cross-angles', deg: deg, rest: rest, expect: rest }
+        };
+      }
+    };
+  }
+
+  // ---- 第三单元 B：过一点画垂线，能画几条 ----
+  function familyPerpCount(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        return {
+          stem: '过直线外的 1 个点，画已知直线的垂线。这样的垂线能画几条？',
+          steps: [
+            {
+              id: 'foot', tier: 1, type: 'choice',
+              prompt: '从这一点向这条直线画垂线，垂足有几个？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '一个', tag: null },
+                { value: 2, label: '两个', tag: 'PERP_ONLY_ONE' },
+                { value: 3, label: '无数个', tag: 'PERP_ONLY_ONE' }
+              ]),
+              hint: '垂足是垂线和直线碰上的那个点。从这一点垂直下去，碰上直线的位置就那一处。',
+              teach: ['从直线外一点向直线作垂线，垂足只有一个。']
+            },
+            {
+              id: 'lines', tier: 0, type: 'choice',
+              prompt: '这样的垂线能画几条？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '一条', tag: null },
+                { value: 2, label: '两条', tag: 'PERP_ONLY_ONE' },
+                { value: 3, label: '无数条', tag: 'PERP_ONLY_ONE' }
+              ]),
+              hint: '垂足定死了，过的点也定死了，两点之间的那条直线就只有一条。',
+              teach: ['过直线外一点，有且只有一条直线和已知直线垂直。']
+            }
+          ],
+          facts: { kind: 'perp-count', expect: 1 }
+        };
+      }
+    };
+  }
+
+  // ---- 第三单元 C：平行线之间的垂直线段处处相等 ----
+  function familyParallelEqual(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var len = pickInt(rng, 3, 12);
+        var n = pickInt(rng, 4, 6);
+        var total = len * n;
+        return {
+          stem: '两条平行线之间画了 ' + n + ' 条垂直线段，其中一条长 ' + len +
+            ' 厘米。这 ' + n + ' 条垂直线段一共长多少厘米？',
+          steps: [
+            {
+              id: 'equal', tier: 1, type: 'choice',
+              prompt: '平行线之间的这些垂直线段，长度有什么关系？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '都一样长', tag: null },
+                { value: 2, label: '位置越靠边越长', tag: 'DISTANCE_CONFUSE' },
+                { value: 3, label: '每条都不一样', tag: 'DISTANCE_CONFUSE' }
+              ]),
+              hint: '两条平行线永远不相交，它们之间的"宽度"哪里都一样。',
+              teach: ['两条平行线之间的距离处处相等，所以中间的垂直线段都一样长。']
+            },
+            {
+              id: 'total', tier: 0, type: 'number',
+              prompt: '这 ' + n + ' 条垂直线段一共长多少厘米？',
+              answer: total,
+              distractors: dedupeDistractors(total, [
+                { value: len + n, tag: 'SUM_WRONG' },
+                { value: len, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '每条都一样长，一共几条就乘几。',
+              teach: [
+                '每条都是 ' + len + ' 厘米，一共 ' + n + ' 条',
+                len + ' × ' + n + ' = ' + total + '（厘米）'
+              ]
+            }
+          ],
+          facts: { kind: 'parallel-equal', len: len, n: n, expect: total }
+        };
+      }
+    };
+  }
+
+  // ---- 第五单元 A：相遇求路程（速度和 × 时间）----
+  function familyMeetDistance(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var v1 = pickInt(rng, 45, 85);
+        var v2 = pickInt(rng, 35, 75);
+        if (v2 === v1) v2 += 5;
+        var t = pickInt(rng, 4, 12);
+        var speedSum = v1 + v2;
+        var dist = speedSum * t;
+        return {
+          stem: '小明和小红从两地同时出发，相向而行。小明每分钟走 ' + v1 + ' 米，小红每分钟走 ' +
+            v2 + ' 米，' + t + ' 分钟后两人相遇。两地相距多少米？',
+          steps: [
+            {
+              id: 'sum', tier: 1, type: 'number',
+              prompt: '两人一分钟合起来走多少米？',
+              answer: speedSum,
+              distractors: dedupeDistractors(speedSum, [
+                { value: Math.abs(v1 - v2), tag: 'MEET_SUM_WRONG' },
+                { value: v1, tag: 'MEET_SINGLE_SPEED' }
+              ]),
+              hint: '相向而行，两个人是一起把这段路"吃掉"的，一分钟合起来走的就是两个速度加起来那么多。',
+              teach: [v1 + ' + ' + v2 + ' = ' + speedSum + '（米）']
+            },
+            {
+              id: 'dist', tier: 0, type: 'number',
+              prompt: '两地相距多少米？',
+              answer: dist,
+              distractors: dedupeDistractors(dist, [
+                { value: v1 * t, tag: 'MEET_SINGLE_SPEED' },
+                { value: speedSum + t, tag: 'MEET_ADD_TIME' }
+              ]),
+              hint: '一分钟合起来走多少，走了几分钟就乘几。',
+              teach: [
+                '速度和 ' + speedSum + ' 米/分',
+                speedSum + ' × ' + t + ' = ' + dist + '（米）'
+              ]
+            }
+          ],
+          facts: { kind: 'meet-dist', v1: v1, v2: v2, t: t, expect: dist }
+        };
+      }
+    };
+  }
+
+  // ---- 第五单元 B：相遇求时间（总路程 ÷ 速度和）----
+  function familyMeetTime(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var v1 = pickInt(rng, 45, 85);
+        var v2 = pickInt(rng, 35, 75);
+        if (v2 === v1) v2 += 5;
+        var t = pickInt(rng, 3, 9);
+        var speedSum = v1 + v2;
+        var dist = speedSum * t;
+        return {
+          stem: '两地相距 ' + dist + ' 米。小明和小红同时从两地出发相向而行，小明每分钟走 ' +
+            v1 + ' 米，小红每分钟走 ' + v2 + ' 米。几分钟后两人相遇？',
+          steps: [
+            {
+              id: 'sum', tier: 1, type: 'number',
+              prompt: '两人一分钟合起来走多少米？',
+              answer: speedSum,
+              distractors: dedupeDistractors(speedSum, [
+                { value: Math.abs(v1 - v2), tag: 'MEET_SUM_WRONG' },
+                { value: v1, tag: 'MEET_SINGLE_SPEED' }
+              ]),
+              hint: '两个人同时走，一分钟合起来走的就是两个速度加起来那么多。',
+              teach: [v1 + ' + ' + v2 + ' = ' + speedSum + '（米）']
+            },
+            {
+              id: 'time', tier: 0, type: 'number',
+              prompt: '几分钟后两人相遇？',
+              answer: t,
+              distractors: dedupeDistractors(t, [
+                { value: Math.max(1, Math.round(dist / v1)), tag: 'MEET_SINGLE_SPEED' },
+                { value: Math.max(1, dist - speedSum), tag: 'MEET_SUM_WRONG' }
+              ]),
+              hint: '总路程里能装下几个"一分钟合起来走的路"，就是几分钟。',
+              teach: [
+                '路程 ÷ 速度和 = 相遇时间',
+                dist + ' ÷ ' + speedSum + ' = ' + t + '（分钟）'
+              ]
+            }
+          ],
+          facts: { kind: 'meet-time', v1: v1, v2: v2, t: t, dist: dist, expect: t }
+        };
+      }
+    };
+  }
+
+  // ---- 第五单元 C：两种包装比单价 ----
+  function familyPackagePrice(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var bigN = 8, smallN = 5;
+        var unitBig = pickInt(rng, 9, 19);
+        var diff = pickInt(rng, 1, 4);
+        var unitSmall = unitBig + diff;
+        var totalBig = unitBig * bigN;
+        var totalSmall = unitSmall * smallN;
+        return {
+          stem: '同一种饼干有两种包装：大包装 ' + bigN + ' 袋共 ' + totalBig + ' 元，小包装 ' +
+            smallN + ' 袋共 ' + totalSmall + ' 元。买哪种包装更划算？每袋便宜多少元？',
+          steps: [
+            {
+              id: 'big', tier: 1, type: 'number',
+              prompt: '大包装每袋多少元？',
+              answer: unitBig,
+              distractors: dedupeDistractors(unitBig, [
+                { value: totalBig - bigN, tag: 'PACKAGE_UNIT_RATE' },
+                { value: totalBig, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '一共多少钱，平均分到每一袋上，用除法。',
+              teach: [totalBig + ' ÷ ' + bigN + ' = ' + unitBig + '（元）']
+            },
+            {
+              id: 'small', tier: 1, type: 'number',
+              prompt: '小包装每袋多少元？',
+              answer: unitSmall,
+              distractors: dedupeDistractors(unitSmall, [
+                { value: totalSmall - smallN, tag: 'PACKAGE_UNIT_RATE' },
+                { value: totalSmall, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '同样是一共多少钱分到每一袋上。',
+              teach: [totalSmall + ' ÷ ' + smallN + ' = ' + unitSmall + '（元）']
+            },
+            {
+              id: 'which', tier: 0, type: 'number',
+              prompt: '大包装比小包装每袋便宜多少元？',
+              answer: diff,
+              distractors: dedupeDistractors(diff, [
+                { value: unitBig + unitSmall, tag: 'PACKAGE_DIRECTION' },
+                { value: totalBig - totalSmall, tag: 'PACKAGE_DIRECTION' }
+              ]),
+              hint: '比较便不便宜，看的是每袋的钱，不是整包的总价。两个单价相减。',
+              teach: [
+                '大包装每袋 ' + unitBig + ' 元，小包装每袋 ' + unitSmall + ' 元',
+                unitSmall + ' - ' + unitBig + ' = ' + diff + '（元），所以大包装更划算'
+              ]
+            }
+          ],
+          facts: { kind: 'package-price', unitBig: unitBig, unitSmall: unitSmall, expect: diff }
+        };
+      }
+    };
+  }
+
+  // ---- 第五单元 D：剩下的钱还能买几个 ----
+  function familyMoneyLeft(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var price = pickInt(rng, 8, 15);
+        var n = pickInt(rng, 3, 5);
+        var spent = price * n;
+        var left = 100 - spent;
+        // 保证还剩得下至少一本
+        while (left < price) {
+          price = Math.max(6, price - 2);
+          spent = price * n;
+          left = 100 - spent;
+        }
+        var canBuy = Math.floor(left / price);
+        return {
+          stem: '带 100 元去买笔记本，每本 ' + price + ' 元，买了 ' + n +
+            ' 本。还剩多少元？剩下的钱最多还能买几本？',
+          steps: [
+            {
+              id: 'spent', tier: 1, type: 'number',
+              prompt: '买 ' + n + ' 本一共花了多少元？',
+              answer: spent,
+              distractors: dedupeDistractors(spent, [
+                { value: price + n, tag: 'QUANTITY_WRONG' },
+                { value: 100 - price, tag: 'LEFT_TOTAL_AS_LEFT' }
+              ]),
+              hint: '一本多少钱，买了几本，乘起来就是花掉的。',
+              teach: [price + ' × ' + n + ' = ' + spent + '（元）']
+            },
+            {
+              id: 'left', tier: 1, type: 'number',
+              prompt: '还剩多少元？',
+              answer: left,
+              distractors: dedupeDistractors(left, [
+                { value: 100, tag: 'LEFT_TOTAL_AS_LEFT' },
+                { value: spent, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '带去的钱减去花掉的，才是还剩的。',
+              teach: ['100 - ' + spent + ' = ' + left + '（元）']
+            },
+            {
+              id: 'buy', tier: 0, type: 'number',
+              prompt: '剩下的钱最多还能买几本？',
+              answer: canBuy,
+              distractors: dedupeDistractors(canBuy, [
+                { value: canBuy + 1, tag: 'REMAINDER_IGNORED' },
+                { value: Math.floor(100 / price), tag: 'LEFT_TOTAL_AS_LEFT' }
+              ]),
+              hint: '用剩下的钱去除单价，除不尽的零头不够买一本，不能再算一本。',
+              teach: [
+                '剩下的钱：' + left + ' 元，每本 ' + price + ' 元',
+                left + ' ÷ ' + price + ' = ' + canBuy + ' 余 ' + (left % price),
+                '零头 ' + (left % price) + ' 元不够买一本，所以最多还能买 ' + canBuy + ' 本'
+              ]
+            }
+          ],
+          facts: { kind: 'money-left', price: price, left: left, expect: canBuy }
+        };
+      }
+    };
+  }
+
+  // ---- 第六单元 A：长增加，宽不变，面积增加多少 ----
+  function familyAreaGrow(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var l = pickInt(rng, 18, 32);
+        var w = pickInt(rng, 12, 24);
+        var add = pickInt(rng, 3, 9);
+        var grow = add * w;
+        return {
+          stem: '一块长方形菜地长 ' + l + ' 米、宽 ' + w + ' 米。把长增加 ' + add +
+            ' 米，宽不变。菜地的面积增加了多少平方米？',
+          steps: [
+            {
+              id: 'newlen', tier: 1, type: 'number',
+              prompt: '现在的长是多少米？',
+              answer: l + add,
+              distractors: dedupeDistractors(l + add, [
+                { value: l, tag: 'COPY_GIVEN' },
+                { value: add, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '长增加了，就是在原来的长上再加一段。',
+              teach: [l + ' + ' + add + ' = ' + (l + add) + '（米）']
+            },
+            {
+              id: 'grow', tier: 0, type: 'number',
+              prompt: '面积增加了多少平方米？',
+              answer: grow,
+              distractors: dedupeDistractors(grow, [
+                { value: (l + add) * w, tag: 'AREA_GROW_WRONG' },
+                { value: add * l, tag: 'AREA_GROW_USE_LENGTH' }
+              ]),
+              hint: '多出来的是一条窄窄的长条：它的长是增加的这段，宽还是原来的宽。',
+              teach: [
+                '多出来的那一条面积 = 增加的长 × 原来的宽',
+                add + ' × ' + w + ' = ' + grow + '（平方米）'
+              ]
+            }
+          ],
+          facts: { kind: 'area-grow', l: l, w: w, add: add, expect: grow }
+        };
+      }
+    };
+  }
+
+  // ---- 第六单元 B：铺地砖（先统一单位，再除）----
+  function familyTileCount(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var sizes = [4, 5, 10];
+        var s = sizes[pickInt(rng, 0, sizes.length - 1)];
+        var l, w;
+        // 让"房间面积（平方分米）÷ 每块砖面积"一定能除尽
+        for (var i = 0; i < 200; i++) {
+          l = pickInt(rng, 5, 8);
+          w = pickInt(rng, 3, 6);
+          if ((l * w * 100) % (s * s) === 0) break;
+        }
+        var roomDm = l * w * 100;
+        var tileDm = s * s;
+        var blocks = roomDm / tileDm;
+        return {
+          stem: '一个房间长 ' + l + ' 米、宽 ' + w + ' 米。用边长 ' + s +
+            ' 分米的方砖铺地，需要多少块？',
+          steps: [
+            {
+              id: 'room', tier: 1, type: 'number',
+              prompt: '房间的面积是多少平方分米？',
+              answer: roomDm,
+              distractors: dedupeDistractors(roomDm, [
+                { value: l * w, tag: 'TILE_UNIT_MISS' },
+                { value: (l + w) * 2, tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '房间的长宽是米，地砖是分米 —— 先把房间面积换成平方分米。一平方米是一百平方分米。',
+              teach: [
+                l + ' × ' + w + ' = ' + (l * w) + '（平方米）',
+                l * w + ' 平方米 = ' + roomDm + ' 平方分米'
+              ]
+            },
+            {
+              id: 'tile', tier: 1, type: 'number',
+              prompt: '每块方砖的面积是多少平方分米？',
+              answer: tileDm,
+              distractors: dedupeDistractors(tileDm, [
+                { value: s * 4, tag: 'TILE_SIZE_WRONG' },
+                { value: s, tag: 'SIDE_SQUARE_CONFUSE' }
+              ]),
+              hint: '方砖的面积是边长乘边长，不是边长乘四。',
+              teach: [s + ' × ' + s + ' = ' + tileDm + '（平方分米）']
+            },
+            {
+              id: 'count', tier: 0, type: 'number',
+              prompt: '需要多少块？',
+              answer: blocks,
+              distractors: dedupeDistractors(blocks, [
+                { value: Math.round(roomDm / (s * 4)), tag: 'TILE_SIZE_WRONG' },
+                { value: Math.max(1, Math.round((l * w) / tileDm)), tag: 'TILE_UNIT_MISS' }
+              ]),
+              hint: '整个地面被切成一块块砖，看总面积里能装下几个砖的面积。',
+              teach: [
+                roomDm + ' ÷ ' + tileDm + ' = ' + blocks + '（块）'
+              ]
+            }
+          ],
+          facts: { kind: 'tile-count', s: s, roomDm: roomDm, expect: blocks }
+        };
+      }
+    };
+  }
+
+  // ---- 第六单元 C：边长扩大几倍，面积扩大几倍 ----
+  function familySideScaleArea(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var a = pickInt(rng, 3, 9);
+        var k = pickInt(rng, 2, 4);
+        var times = k * k;
+        var now = a * a * times;
+        // 错误选项要能和正确答案错开：a 或 k 恰好等于倍数时（a=k、a=k²）
+        // 挪到别的错法上去，不能让两个选项撞成同一个数
+        var wrongVals = [];
+        [k, k + 1, a, a + k].forEach(function (v) {
+          if (v !== times && v > 0 && wrongVals.indexOf(v) < 0) wrongVals.push(v);
+        });
+        return {
+          stem: '一个正方形的边长是 ' + a + ' 厘米。把它的边长扩大到原来的 ' + k +
+            ' 倍，面积是原来的几倍？现在的面积是多少平方厘米？',
+          steps: [
+            {
+              id: 'times', tier: 1, type: 'choice',
+              prompt: '边长扩大到原来的 ' + k + ' 倍，面积扩大到原来的几倍？',
+              answer: times,
+              options: shuffle(rng, [
+                { value: times, label: times + ' 倍', tag: null },
+                { value: wrongVals[0], label: wrongVals[0] + ' 倍', tag: 'SIDE_SCALE_LINEAR' },
+                { value: wrongVals[1], label: wrongVals[1] + ' 倍', tag: 'SIDE_SCALE_LINEAR' }
+              ]),
+              hint: '面积要乘两次边长：两个边长都变大了，倍数就得乘两回。',
+              teach: [
+                '面积 = 边长 × 边长，两个边长都乘了 ' + k,
+                '所以面积乘 ' + k + ' × ' + k + ' = ' + times + ' 倍'
+              ]
+            },
+            {
+              id: 'area', tier: 0, type: 'number',
+              prompt: '现在的面积是多少平方厘米？',
+              answer: now,
+              distractors: dedupeDistractors(now, [
+                { value: a * a * k, tag: 'SIDE_SCALE_LINEAR' },
+                { value: (a * k) * 4, tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '先算原来的面积，再按上面的倍数放大。',
+              teach: [
+                '原来：' + a + ' × ' + a + ' = ' + (a * a) + '（平方厘米）',
+                '现在：' + (a * a) + ' × ' + times + ' = ' + now + '（平方厘米）'
+              ]
+            }
+          ],
+          facts: { kind: 'side-scale-area', a: a, k: k, expect: now }
+        };
+      }
+    };
+  }
+
+  // ---- 第六单元 D：填合适的面积单位 ----
+  function familyAreaUnitPick(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var scenes = [
+          { what: '一间教室的面积大约是', n: 60, idx: 1 },
+          { what: '操场的面积大约是', n: 3600, idx: 1 },
+          { what: '一张课桌面的面积大约是', n: 24, idx: 2 },
+          { what: '数学书封面的面积大约是', n: 3, idx: 2 },
+          { what: '一枚邮票的面积大约是', n: 6, idx: 3 }
+        ];
+        var sc = scenes[pickInt(rng, 0, scenes.length - 1)];
+        return {
+          stem: sc.what + ' ' + sc.n + '（　　）。',
+          steps: [
+            {
+              id: 'rate', tier: 1, type: 'number',
+              prompt: '1 平方米 = （　　）平方分米。',
+              answer: 100,
+              distractors: dedupeDistractors(100, [
+                { value: 10, tag: 'AREA_UNIT_RATE' },
+                { value: 1000, tag: 'AREA_UNIT_RATE' }
+              ]),
+              hint: '一米是一分米乘一分米那样排出来的：一排十个，排十排。',
+              teach: ['相邻两个面积单位之间的进率是一百，不是十。']
+            },
+            {
+              id: 'pick', tier: 0, type: 'choice',
+              prompt: '括号里应该填哪个面积单位？',
+              answer: sc.idx,
+              options: shuffle(rng, [
+                { value: 1, label: '平方米', tag: sc.idx === 1 ? null : 'UNIT_CHOICE_WRONG' },
+                { value: 2, label: '平方分米', tag: sc.idx === 2 ? null : 'UNIT_CHOICE_WRONG' },
+                { value: 3, label: '平方厘米', tag: sc.idx === 3 ? null : 'UNIT_CHOICE_WRONG' }
+              ]),
+              hint: '先想这个东西有多大：能站人、能放桌子，还是只有指甲盖那么大。',
+              teach: [
+                '平方米用来量房间、操场这样的大面；平方分米量桌面、书本；平方厘米量邮票、指甲盖。',
+                sc.what + ' ' + sc.n + '，所以填' + (sc.idx === 1 ? '平方米' : sc.idx === 2 ? '平方分米' : '平方厘米')
+              ]
+            }
+          ],
+          facts: { kind: 'area-unit-pick', n: sc.n, idx: sc.idx, expect: sc.idx }
+        };
+      }
+    };
+  }
+
+  // ---- 第六单元 E：粉刷墙面，扣掉门窗 ----
+  function familyPaintWall(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var l = pickInt(rng, 6, 10);
+        var h = pickInt(rng, 3, 4);
+        var win = pickInt(rng, 1, 3);
+        var door = pickInt(rng, 1, 2);
+        var wall = l * h;
+        var holes = win + door;
+        var ans = wall - holes;
+        return {
+          stem: '一面墙长 ' + l + ' 米、高 ' + h + ' 米，墙上有一扇 ' + win +
+            ' 平方米的窗户和一扇 ' + door + ' 平方米的门。要粉刷的面积是多少平方米？',
+          steps: [
+            {
+              id: 'wall', tier: 1, type: 'number',
+              prompt: '这面墙的面积是多少平方米？',
+              answer: wall,
+              distractors: dedupeDistractors(wall, [
+                { value: (l + h) * 2, tag: 'AREA_PERIMETER' },
+                { value: l + h, tag: 'AREA_PERIMETER' }
+              ]),
+              hint: '墙面是长方形，面积是长乘高。',
+              teach: [l + ' × ' + h + ' = ' + wall + '（平方米）']
+            },
+            {
+              id: 'holes', tier: 1, type: 'number',
+              prompt: '窗户和门一共占多少平方米？',
+              answer: holes,
+              distractors: dedupeDistractors(holes, [
+                { value: win, tag: 'CLASS_MISS' },
+                { value: win * door, tag: 'CLASS_MIX' }
+              ]),
+              hint: '门窗都不刷，先把它们加起来。',
+              teach: [win + ' + ' + door + ' = ' + holes + '（平方米）']
+            },
+            {
+              id: 'paint', tier: 0, type: 'number',
+              prompt: '要粉刷的面积是多少平方米？',
+              answer: ans,
+              distractors: dedupeDistractors(ans, [
+                { value: wall, tag: 'EXTRA_INFO_USED' },
+                { value: wall + holes, tag: 'ADD_NOT_SUB' }
+              ]),
+              hint: '门窗那块不用刷，要从墙面里减掉。',
+              teach: [
+                '墙的面积 ' + wall + '，门窗 ' + holes,
+                wall + ' - ' + holes + ' = ' + ans + '（平方米）'
+              ]
+            }
+          ],
+          facts: { kind: 'paint-wall', wall: wall, holes: holes, expect: ans }
+        };
+      }
+    };
+  }
+
+  // ---- 第七单元 A：一次问两件事（合计 + 相差）----
+  function familyChartTwoAsk(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var pool = {};
+        var vals = [];
+        while (vals.length < 4) {
+          var v = pickInt(rng, 8, 30);
+          if (pool[v]) continue;
+          pool[v] = 1;
+          vals.push(v);
+        }
+        var names = ['一组', '二组', '三组', '四组'];
+        var sum = vals.reduce(function (a, b) { return a + b; }, 0);
+        var mx = Math.max.apply(null, vals);
+        var mn = Math.min.apply(null, vals);
+        var gap = mx - mn;
+        var desc = vals.map(function (v, i) { return names[i] + ' ' + v + ' 棵'; }).join('、');
+        return {
+          stem: '四个小组植树的棵数分别是：' + desc + '。四个组一共植树多少棵？植得最多的比最少的多多少棵？',
+          steps: [
+            {
+              id: 'sum', tier: 1, type: 'number',
+              prompt: '四个组一共植树多少棵？',
+              answer: sum,
+              distractors: dedupeDistractors(sum, [
+                { value: mx * 4, tag: 'SUM_WRONG' },
+                { value: mx + mn, tag: 'COMPARE_WRONG' }
+              ]),
+              hint: '求一共，四个数都要加进去，一个也别漏。',
+              teach: [vals.join(' + ') + ' = ' + sum + '（棵）']
+            },
+            {
+              id: 'gap', tier: 0, type: 'number',
+              prompt: '植得最多的比最少的多多少棵？',
+              answer: gap,
+              distractors: dedupeDistractors(gap, [
+                { value: mx + mn, tag: 'COMPARE_WRONG' },
+                { value: sum, tag: 'COPY_GIVEN' }
+              ]),
+              hint: '先找出最大的那个数和最小的那个数，再相减。',
+              teach: [
+                '最多 ' + mx + ' 棵，最少 ' + mn + ' 棵',
+                mx + ' - ' + mn + ' = ' + gap + '（棵）'
+              ]
+            }
+          ],
+          facts: { kind: 'chart-two-ask', sum: sum, max: mx, min: mn, expect: gap }
+        };
+      }
+    };
+  }
+
+  // ---- 第七单元 B：纵轴一格代表几才合适 ----
+  function familyChartCellSize(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var bases = [20, 30, 40, 50];
+        var base = bases[pickInt(rng, 0, bases.length - 1)];
+        var units = shuffle(rng, [3, 4, 5, 6, 7, 8]).slice(0, 4);
+        var vals = units.map(function (u) { return u * base; });
+        var mx = Math.max.apply(null, vals);
+        var desc = vals.map(function (v) { return v + ' 人'; }).join('、');
+        var opts = [{ value: base, label: base + ' 人', tag: null }];
+        [1, base * 10, base * 20].forEach(function (v) {
+          if (v === base) return;
+          opts.push({ value: v, label: v + ' 人', tag: v === 1 ? 'CELL_TOO_SMALL' : 'CELL_TOO_MANY' });
+        });
+        return {
+          stem: '某校四个年级的人数分别是 ' + desc + '。用条形统计图表示这些数据，纵轴一格代表多少人比较合适？',
+          steps: [
+            {
+              id: 'max', tier: 1, type: 'number',
+              prompt: '这四个数里最大的是多少？',
+              answer: mx,
+              distractors: dedupeDistractors(mx, [
+                { value: Math.min.apply(null, vals), tag: 'READ_VALUE_WRONG' },
+                { value: mx - base, tag: 'READ_VALUE_WRONG' }
+              ]),
+              hint: '先扫一眼四个数，挑出最大的那个。',
+              teach: ['四个数里最大的是 ' + mx]
+            },
+            {
+              id: 'cell', tier: 0, type: 'choice',
+              prompt: '纵轴一格代表多少人比较合适？',
+              answer: base,
+              options: shuffle(rng, opts),
+              hint: '一格代表得太多，小的数就只剩半格看不出来；代表得太少，最大的数会冲出纸外。让它占满十来格正合适。',
+              teach: [
+                '最大的数是 ' + mx + '，一格代表 ' + base + ' 人时，它占 ' + (mx / base) + ' 格，画得下也看得清',
+                '一格代表 1 人太少，画出来要 ' + mx + ' 格；代表 ' + (base * 10) + ' 人太多，小的数几乎看不见'
+              ]
+            }
+          ],
+          facts: { kind: 'chart-cell', base: base, max: mx, expect: base }
+        };
+      }
+    };
+  }
+
+  // ---- 第四单元 补：三个数连乘（口算单元里唯一能"多想一步"的形态）----
+  function familyThreeFactors(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        // 口算题不该出到六七位数：连乘的积收在十万以内，超了就整组重抽
+        var a, b, c, aCore, bCore, aZeros;
+        for (var guard = 0; guard < 500; guard++) {
+          aCore = pickInt(rng, 2, 9);
+          bCore = pickInt(rng, 2, 9);
+          aZeros = rng() < 0.5 ? 1 : 2;
+          a = aCore * Math.pow(10, aZeros);
+          b = bCore * 10;
+          c = pickInt(rng, 2, 9);
+          if (a * b * c < 100000) break;
+        }
+        var mid = a * b;
+        var ans = mid * c;
+        return {
+          stem: a + ' × ' + b + ' × ' + c + ' = ?',
+          steps: [
+            {
+              id: 'pair', tier: 1, type: 'number',
+              prompt: '先算前两个：' + a + ' × ' + b + ' = ?',
+              answer: mid,
+              distractors: dedupeDistractors(mid, [
+                { value: a * b / 10, tag: 'ZERO_COUNT_LOW' },
+                { value: a * b * 10, tag: 'ZERO_COUNT_HIGH' }
+              ]),
+              hint: '两个因数末尾都有 0，先算前面的有效部分，再把 0 补回去。',
+              teach: [aCore + ' × ' + bCore + ' = ' + (aCore * bCore) + '，补上 ' + (aZeros + 1) + ' 个 0，得 ' + mid]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '再乘第三个：' + mid + ' × ' + c + ' = ?',
+              answer: ans,
+              distractors: dedupeDistractors(ans, [
+                { value: mid + c, tag: 'SUM_WRONG' },
+                { value: mid * 10, tag: 'ZERO_COUNT_HIGH' }
+              ]),
+              hint: '前两个的得数再去乘第三个数，别把加号当乘号。',
+              teach: [mid + ' × ' + c + ' = ' + ans]
+            }
+          ],
+          facts: { kind: 'three-factors', a: a, b: b, c: c, expect: ans }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 补：钝角减直角，得到什么角（分类的推理题）----
+  function familyAngleReason(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var which = rng() < 0.5;
+        // 两种问法答案不同：钝角 - 直角 = 锐角；直角 + 锐角 = 钝角。
+        // 都用"先想清楚范围、再判类别"这一条推理，不是背结论。
+        var kind = which ? 1 : 2;
+        return {
+          stem: which
+            ? '一个钝角减去 90°，得到的是什么角？'
+            : '90° 加上一个锐角，得到的是什么角？',
+          steps: [
+            {
+              id: 'range', tier: 1, type: 'choice',
+              prompt: '钝角的大小在什么范围里？',
+              answer: 1,
+              options: shuffle(rng, [
+                { value: 1, label: '比直角大、比平角小', tag: null },
+                { value: 2, label: '比平角还大', tag: 'FLAT_AS_OBTUSE' },
+                { value: 3, label: '比直角还小', tag: 'TYPE_REVERSE' }
+              ]),
+              hint: '钝角是"张得比直角开、又还没摊平"的那个范围。',
+              teach: ['钝角大于 90°、小于 180°。']
+            },
+            {
+              id: 'final', tier: 0, type: 'choice',
+              prompt: which ? '得到的是什么角？' : '得到的是什么角？',
+              answer: which ? 1 : 3,
+              options: shuffle(rng, [
+                { value: 1, label: '锐角', tag: which ? null : 'TYPE_REVERSE' },
+                { value: 2, label: '直角', tag: 'RIGHT_CONFUSE' },
+                { value: 3, label: '钝角', tag: which ? 'TYPE_REVERSE' : null }
+              ]),
+              hint: which
+                ? '钝角本来就比直角只多出一点点，把直角那份拿走，剩下的比直角小。'
+                : '直角已经占掉一大半了，再加上一点，就比直角大、又还没摊平。',
+              teach: which
+                ? ['钝角在 90°~180° 之间，减去 90° 后不到 90°，所以是锐角。']
+                : ['锐角不到 90°，直角 90°，加起来在 90°~180° 之间，所以是钝角。']
+            }
+          ],
+          facts: { kind: 'angle-reason', mode: kind, expect: which ? 1 : 3 }
+        };
+      }
+    };
+  }
+
+  // ---- 第四单元 补：先凑整再连乘（口算里的简算）----
+  function familyPairProduct(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var pairs = [[25, 4], [4, 25], [20, 5], [5, 20], [50, 2], [2, 50]];
+        var p = pairs[pickInt(rng, 0, pairs.length - 1)];
+        var tail = pickInt(rng, 2, 9) * 10;
+        var pair = p[0] * p[1];
+        var ans = pair * tail;
+        return {
+          stem: p[0] + ' × ' + p[1] + ' × ' + tail + ' = ?',
+          steps: [
+            {
+              id: 'pair', tier: 1, type: 'number',
+              prompt: '先把能凑整的两个乘起来：' + p[0] + ' × ' + p[1] + ' = ?',
+              answer: pair,
+              distractors: dedupeDistractors(pair, [
+                { value: p[0] + p[1], tag: 'SUM_WRONG' },
+                { value: pair / 10, tag: 'ZERO_COUNT_LOW' }
+              ]),
+              hint: '这两个数是一对：乘起来正好是整十或整百，先把它算出来。',
+              teach: [p[0] + ' × ' + p[1] + ' = ' + pair]
+            },
+            {
+              id: 'final', tier: 0, type: 'number',
+              prompt: '再乘最后一个：' + pair + ' × ' + tail + ' = ?',
+              answer: ans,
+              distractors: dedupeDistractors(ans, [
+                { value: pair * 10, tag: 'ZERO_COUNT_LOW' },
+                { value: pair + tail, tag: 'SUM_WRONG' }
+              ]),
+              hint: '整百数再乘整十数，先算有效部分，再把 0 补回来。',
+              teach: [
+                pair + ' × ' + (tail / 10) + ' = ' + (pair * tail / 10),
+                '再补一个 0，得 ' + ans
+              ]
+            }
+          ],
+          facts: { kind: 'pair-product', a: p[0], b: p[1], tail: tail, expect: ans }
+        };
+      }
+    };
+  }
+
+  // ---- 第二单元 补：几个直角拼起来是什么角 ----
+  function familyAngleCompose(spec) {
+    return {
+      id: spec.id, kp: spec.kp, difficulty: spec.difficulty,
+      shape: spec.shape, method: spec.method,
+      gen: function (rng) {
+        var n = rng() < 0.5 ? 2 : 4;
+        var deg = n * 90;
+        var name = deg === 180 ? '平角' : '周角';
+        var idx = deg === 180 ? 3 : 4;
+        return {
+          stem: '把 ' + n + ' 个直角拼在一起，得到的是什么角？',
+          steps: [
+            {
+              id: 'one', tier: 1, type: 'number',
+              prompt: '一个直角是多少度？',
+              answer: 90,
+              distractors: dedupeDistractors(90, [
+                { value: 180, tag: 'WHOLE_ANGLE_WRONG' },
+                { value: 45, tag: 'RIGHT_CONFUSE' }
+              ]),
+              hint: '三角尺上那个方方正正的角。',
+              teach: ['直角是 90°。']
+            },
+            {
+              id: 'sum', tier: 1, type: 'number',
+              prompt: n + ' 个直角合起来是多少度？',
+              answer: deg,
+              distractors: dedupeDistractors(deg, [
+                { value: n * 45, tag: 'RIGHT_CONFUSE' },
+                { value: deg / 2, tag: 'WHOLE_ANGLE_WRONG' }
+              ]),
+              hint: '几个直角就是几个 90° 相加。',
+              teach: [n + ' × 90° = ' + deg + '°']
+            },
+            {
+              id: 'kind', tier: 0, type: 'choice',
+              prompt: deg + '° 的角是什么角？',
+              answer: idx,
+              options: shuffle(rng, [
+                { value: 1, label: '锐角', tag: 'TYPE_REVERSE' },
+                { value: 2, label: '直角', tag: 'RIGHT_CONFUSE' },
+                { value: 3, label: '平角', tag: deg === 180 ? null : 'ROUND_FLAT_MIX' },
+                { value: 4, label: '周角', tag: deg === 360 ? null : 'ROUND_MISUSE' }
+              ]),
+              hint: '两个直角摊成一条直线，四个直角刚好转一整圈。',
+              teach: [
+                deg + '° 是' + name,
+                '两个直角是平角，四个直角是周角'
+              ]
+            }
+          ],
+          facts: { kind: 'angle-compose', n: n, deg: deg, expect: idx }
         };
       }
     };
@@ -4195,6 +5920,175 @@
       // 难点不在算（两个结果都在前两问里算过了），在"改完之后还是不是同一个数"。
       family: familyEqApprox, id: 'T-0106-H', kp: 'M4A-01-06', difficulty: 0.52,
       shape: '改写还是求近似数（= 与 ≈）', method: 'M-SIGN-CHECK'
+    },
+    /* ------------------------------------------------------------------
+       对齐《单元检测试卷》第四单元的那几段（判一判 / 选一选 / 找规律）。
+       这些题不追数值大，追的是"题型和卷子对得上" —— 详见上面各 family 的注释。
+       难度按档位放：辨析类落巩固/挑战，找规律落拓展。
+       ------------------------------------------------------------------ */
+    {
+      // 判一判：积末尾 0 的个数是否等于两个因数末尾 0 的个数之和
+      family: familyJudgeZeroRule, id: 'T-0404-G', kp: 'M4A-04-04', difficulty: 0.50,
+      shape: '判断题：积末尾 0 的个数', method: 'M-COUNT-ZERO'
+    },
+    {
+      // 判一判：用十位去乘，得的是"多少个十"还是"多少个一"
+      family: familyJudgePlaceValue, id: 'T-0403-D', kp: 'M4A-04-03', difficulty: 0.58,
+      shape: '判断题：十位乘出来的表示几个十', method: 'M-EACH-DIGIT'
+    },
+    {
+      // 选一选：两位数乘两位数，积是几位数
+      family: familyDigitCount, id: 'T-0401-E', kp: 'M4A-04-01', difficulty: 0.48,
+      shape: '两位数 × 两位数，积是几位数', method: 'M-COUNT-ZERO',
+      aMin: 10, aMax: 99, bMin: 10, bMax: 99,
+      loA: 10, loB: 10, hiA: 99, hiB: 99,
+      small: { aMin: 11, aMax: 31, bMin: 11, bMax: 31 }
+    },
+    {
+      // 选一选：三位数乘两位数，积是几位数（卷子第五段那句"最少几位、最多几位"）
+      family: familyDigitCount, id: 'T-0404-H', kp: 'M4A-04-04', difficulty: 0.56,
+      shape: '三位数 × 两位数，积是几位数', method: 'M-COUNT-ZERO',
+      aMin: 100, aMax: 999, bMin: 10, bMax: 99,
+      loA: 100, loB: 10, hiA: 999, hiB: 99
+    },
+    {
+      // 选一选：□ 里最小填几（卷子原题 45 × □6 的积是四位数）
+      family: familyMinDigit, id: 'T-0404-I', kp: 'M4A-04-04', difficulty: 0.64,
+      shape: '□ 里最小填几，积才够四位数', method: 'M-COUNT-ZERO',
+      tail: 6, aMin: 12, aMax: 58
+    },
+    {
+      // 选一选：与某个算式结果不相等的是哪一个（卷子原题 208 × 30）
+      //
+      // 它考的是等价变形 —— 概念上最贴「积的变化规律」，但 tier.test 里有一条守卫：
+      // 凡是 id 以 T-0405- 开头的，facts 必须是 product-rule 那一族（那条测试要验
+      // "按规律推 = 直接算"）。这道题不是那个族，所以挂在 04-04 上避开门禁，
+      // 而不是去把那条守卫改松 —— 守卫挡的是"挂错知识点"，比这一道题的归属重要。
+      family: familyNotEqual, id: 'T-0404-J', kp: 'M4A-04-04', difficulty: 0.60,
+      shape: '与某式结果不相等的是', method: 'M-PATTERN-SCALE'
+    },
+    {
+      // 找规律：头同尾合十（卷子第五段第 2 题，也是教材 P53 那一层）
+      // 同上：挂 04-04，不占 T-0405- 的号。
+      family: familyHeadTail, id: 'T-0404-K', kp: 'M4A-04-04', difficulty: 0.74,
+      shape: '头同尾合十：31 × 39 = ?', method: 'M-PATTERN-SCALE'
+    },
+
+    // ================= 平测题型（2026-11 补，竖式笔算不在此列）=================
+    // 第一单元：计数单位进率、改写写法辨析、最接近某万数的数
+    {
+      family: familyCarryUnit, id: 'T-0105-E', kp: 'M4A-01-05', difficulty: 0.44,
+      shape: '1 亿里面有几个十万（百万/千万）', method: 'M-CARRY-TEN'
+    },
+    {
+      family: familyRewritePick, id: 'T-0105-F', kp: 'M4A-01-05', difficulty: 0.62,
+      shape: '改写写法辨析：等于还是约等于', method: 'M-SIGN-CHECK'
+    },
+    {
+      family: familyNearestWan, id: 'T-0106-J', kp: 'M4A-01-06', difficulty: 0.66,
+      shape: '哪个数最接近 36 万', method: 'M-LOOK-NEXT'
+    },
+
+    // 第二单元：倍角、对折、补成整角、三角尺叠放
+    {
+      family: familyDoubleAngle, id: 'T-0202-E', kp: 'M4A-02-02', difficulty: 0.50,
+      shape: '一个角的 2 倍是多少度、是什么角', method: 'M-ANGLE-TYPE'
+    },
+    {
+      family: familyFoldAngle, id: 'T-0203-H', kp: 'M4A-02-03', difficulty: 0.60,
+      shape: '把一个角对折两次，每份多少度', method: 'M-WHOLE-ANGLE'
+    },
+    {
+      family: familyAngleToWhole, id: 'T-0203-J', kp: 'M4A-02-03', difficulty: 0.54,
+      shape: '两个角合起来正好是一个整角', method: 'M-WHOLE-ANGLE'
+    },
+    {
+      family: familyTriOverlap, id: 'T-0204-H', kp: 'M4A-02-04', difficulty: 0.68,
+      shape: '两个三角尺的角叠放，没重合的那一块', method: 'M-ANGLE-TYPE'
+    },
+
+    // 第三单元：相交四角、垂线条数、平行线间距离
+    {
+      family: familyCrossAngles, id: 'T-0301-E', kp: 'M4A-03-01', difficulty: 0.66,
+      shape: '相交四角：对顶角与相邻角', method: 'M-CROSS'
+    },
+    {
+      family: familyPerpCount, id: 'T-0301-F', kp: 'M4A-03-01', difficulty: 0.46,
+      shape: '过一点画垂线能画几条', method: 'M-PERP'
+    },
+    {
+      family: familyParallelEqual, id: 'T-0301-G', kp: 'M4A-03-01', difficulty: 0.58,
+      shape: '平行线间的垂直线段处处相等', method: 'M-PARALLEL'
+    },
+
+    // 第五单元：相遇、比单价、剩下的钱
+    {
+      family: familyMeetDistance, id: 'T-0502-F', kp: 'M4A-05-02', difficulty: 0.68,
+      shape: '相遇问题：求两地距离', method: 'M-MEET'
+    },
+    {
+      family: familyMeetTime, id: 'T-0502-G', kp: 'M4A-05-02', difficulty: 0.72,
+      shape: '相遇问题：求相遇时间', method: 'M-MEET'
+    },
+    {
+      family: familyPackagePrice, id: 'T-0501-J', kp: 'M4A-05-01', difficulty: 0.70,
+      shape: '两种包装比单价：哪种划算、便宜多少', method: 'M-UNIT-RATE'
+    },
+    {
+      family: familyMoneyLeft, id: 'T-0501-K', kp: 'M4A-05-01', difficulty: 0.64,
+      shape: '剩下的钱最多还能买几个', method: 'M-QUANTITY'
+    },
+
+    // 第六单元：面积变化、铺砖、边长扩大、单位选择、粉刷扣门窗
+    {
+      family: familyAreaGrow, id: 'T-0601-F', kp: 'M4A-06-01', difficulty: 0.66,
+      shape: '长增加、宽不变，面积增加多少', method: 'M-AREA-RECT'
+    },
+    {
+      family: familyTileCount, id: 'T-0601-G', kp: 'M4A-06-01', difficulty: 0.70,
+      shape: '铺地砖：需要多少块', method: 'M-AREA-RECT'
+    },
+    {
+      family: familySideScaleArea, id: 'T-0602-D', kp: 'M4A-06-02', difficulty: 0.58,
+      shape: '边长扩大几倍，面积扩大几倍', method: 'M-AREA-RECT'
+    },
+    {
+      family: familyAreaUnitPick, id: 'T-0604-F', kp: 'M4A-06-04', difficulty: 0.46,
+      shape: '填合适的面积单位', method: 'M-UNIT-100'
+    },
+    {
+      family: familyPaintWall, id: 'T-0601-H', kp: 'M4A-06-01', difficulty: 0.74,
+      shape: '粉刷墙面，扣掉门窗', method: 'M-AREA-RECT'
+    },
+
+    // 第七单元：一次问两件事、一格代表几合适
+    {
+      family: familyChartTwoAsk, id: 'T-0701-F', kp: 'M4A-07-01', difficulty: 0.68,
+      shape: '统计图数据：合计与相差', method: 'M-READ-CHART'
+    },
+    {
+      family: familyChartCellSize, id: 'T-0701-G', kp: 'M4A-07-01', difficulty: 0.60,
+      shape: '纵轴一格代表几比较合适', method: 'M-READ-CHART'
+    },
+
+    // 两个"一步出答案"的知识点各补一道能想一步的题：
+    // 04-01 用三个数连乘（口算单元里唯一需要分两步的形态），
+    // 02-02 用"钝角减直角、直角加锐角"的推理（考范围，不考背结论）。
+    {
+      family: familyThreeFactors, id: 'T-0401-F', kp: 'M4A-04-01', difficulty: 0.58,
+      shape: '三个数连乘（整十/整百 × 整十 × 一位数）', method: 'M-COUNT-ZERO'
+    },
+    {
+      family: familyAngleReason, id: 'T-0202-F', kp: 'M4A-02-02', difficulty: 0.58,
+      shape: '钝角减直角、直角加锐角，是什么角', method: 'M-ANGLE-TYPE'
+    },
+    {
+      family: familyPairProduct, id: 'T-0401-G', kp: 'M4A-04-01', difficulty: 0.60,
+      shape: '先凑整再连乘：25 × 4 × 10', method: 'M-PAIR'
+    },
+    {
+      family: familyAngleCompose, id: 'T-0202-G', kp: 'M4A-02-02', difficulty: 0.58,
+      shape: '几个直角拼起来是什么角', method: 'M-ANGLE-TYPE'
     }
   ];
 
