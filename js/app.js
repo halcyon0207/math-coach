@@ -1773,6 +1773,23 @@
       if (t) stepTags.push(t);
     });
 
+    // 错在哪一步：家长要的不是"这题错了"，是"他是在第几步拐错弯的"。
+    // 只存错因标签不够 —— 标签说"末尾的 0 数错了"，家长仍然不知道他当时填了什么。
+    // 每步存 题干（截 40 字）/ 他填的 / 正确答案 / 错因。
+    // 没作答的步骤不算：中途退出那一题要是把每步都记成空，报告会像"全军覆没"。
+    var stepWalk = [];
+    q.steps.forEach(function (s, i) {
+      var ss = app.stepStates[i];
+      if (!E.countsAsAnswer({ attempts: ss.attempts })) return;
+      stepWalk.push({
+        p: String(s.prompt || '').slice(0, 40),
+        a: String(s.answer == null ? '' : s.answer).slice(0, 24),
+        v: String(ss.lastValue == null ? '' : ss.lastValue).slice(0, 24),
+        t: ss.firstErrorTag || (ss.isCorrect ? null : ss.errorTag) || null,
+        f: s.tier === 0 ? 1 : 0
+      });
+    });
+
     var rec = {
       ts: Date.now(),
       sessionId: app.session.id,
@@ -1788,6 +1805,9 @@
       // 孩子填的是什么也记下来：家长看报告时，"他答的是几"比一句"错了"有用得多。
       // 截前 24 个字符 —— 答案本身很短，防的是极端输入把存储撑大。
       answer: String(fs.lastValue == null ? '' : fs.lastValue).slice(0, 24),
+      // 正确答案也记下来。家长报告里"他填的是 35"只说明错了，配一句"应是 4200"
+      // 才知道差在哪 —— 这一条以前缺着，报告只能靠家长自己心算。
+      expected: String(finalStep.answer == null ? '' : finalStep.answer).slice(0, 24),
       errorTag: fs.isCorrect ? null : (fs.firstErrorTag || fs.errorTag),
       stepTags: stepTags,
       magnitudeFailed: !!fs.magnitudeFailed,
@@ -1813,6 +1833,9 @@
         });
       });
     }
+
+    // 答对了、中间也没拐错弯的题没有可查的东西，不占存储和云端配额
+    if (!fs.isCorrect || stepTags.length) rec.steps = stepWalk;
 
     var out = E.applyResult(app.state, rec);
     app.state = out.state;
@@ -1908,15 +1931,24 @@
   function reportSnapshot() {
     // 云端请求有 256KB 上限，草稿笔迹只带最近 50 条的 —— 更早的在家长手机上
     // 看不到草稿，但题干、答案、对错、错因都还在。
+    // 逐步骤的走法（steps）也按同样思路裁：答对又没拐错弯的题没有可查的，
+    // 老的记录也只留最近 50 条的步骤，免得两百条一起挤爆配额。
     var hist = (app.state.history || []).slice(-200);
     var keepFrom = hist.length - 50;
     var slim = hist.map(function (h, i) {
-      if (i < keepFrom && h.strokes) {
-        var c = {};
-        for (var k in h) if (h.hasOwnProperty(k) && k !== 'strokes') c[k] = h[k];
-        return c;
+      var old = i < keepFrom;
+      var keepSteps = !!h.steps && !old && (!h.isCorrect || !!(h.stepTags && h.stepTags.length));
+      var dropStrokes = old && !!h.strokes;
+      var dropSteps = !!h.steps && !keepSteps;
+      if (!dropStrokes && !dropSteps) return h;
+      var c = {};
+      for (var k in h) {
+        if (!h.hasOwnProperty(k)) continue;
+        if (dropStrokes && k === 'strokes') continue;
+        if (dropSteps && k === 'steps') continue;
+        c[k] = h[k];
       }
-      return h;
+      return c;
     });
     return {
       devName: (F && F.sync() && F.sync().name) || '设备',
@@ -2091,7 +2123,7 @@
         return '<button class="unit-btn' + (r.k === cur ? ' on' : '') +
           '" data-act="range" data-r="' + r.k + '">' + r.name + '</button>';
       }).join('') + '</div>' +
-      '<p class="card-note">切换只影响下面「每次练习」「错题」「每道题的记录」三块；' +
+      '<p class="card-note">切换只影响下面「错在哪」「每次练习」「全部作答明细」三块；' +
       '上面的总览和「错误点都在哪」一直是全部（累计）。</p>' +
       '</div>';
   }
@@ -2200,46 +2232,79 @@
         '</div></div>';
     }).join('');
 
-    // ---- 最近错题 ----
-    var wrongRows = rangeHist.filter(function (h) { return !h.isCorrect; }).slice(-20).reverse()
-      .map(function (h) {
-        var ts = tagsOf(h).map(function (t) {
-          return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
-        });
-        return '<div class="kp-row">' +
-          '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
-          '<span class="kp-label">' + esc(fmtTime(h.ts)) + '</span></div>' +
-          '<div class="kp-foot"><span>错因：' + esc(ts.join('、') || '再算一遍试试') + '</span>' +
-          '<span>' + (h.hintLevel > 0 ? '用了提示' : '没用提示') + '</span></div>' +
-          '</div>';
-      }).join('');
-
-    // ---- 每道题的记录（对的也列）----
-    // 只列错题的话，家长看不到"他做对了哪些、什么时候做的"，
-    // 而报告的价值有一半恰恰在"对的那部分稳不稳"。
-    // 带笔迹的题目把草稿也回放出来：竖式、圈画这些能还原孩子当时的思路。
+    // ---- 错在哪：一条错题给三样东西（他填的 / 应填的 / 哪一步拐错的）----
+    // 家长来查阅要的不是"错了 5 道"，是"他是怎么错的"。
+    // 光一个错因标签不够："末尾的 0 数错了"配着"他填 420、应是 4200"才落得到实处。
     app._miniReplay = [];
-    var detailRows = rangeHist.slice(-60).reverse().map(function (h, i) {
-      var dts = tagsOf(h).map(function (t) {
+    var wrongList = rangeHist.filter(function (h) { return !h.isCorrect; });
+    var wrongRows = wrongList.slice(-20).reverse().map(function (h, i) {
+      var tagList = tagsOf(h);
+      var labels = tagList.map(function (t) {
         return (T.ERROR_TAGS[t] || { label: '再算一遍试试' }).label;
       });
-      var id = 'mmini-' + i;
+      // 第一条有建议的错因就是"怎么讲"：家长照着念就能开口，不用自己组织语言
+      var advice = '';
+      tagList.some(function (t) {
+        var a = (T.ERROR_TAGS[t] || {}).advice;
+        if (a) { advice = a; return true; }
+        return false;
+      });
+      var id = 'wink-' + i;
       if (h.strokes && h.strokes.length && h.canvasW && h.canvasH) {
-        app._miniReplay.push({
-          id: id, strokes: h.strokes, cw: h.canvasW, ch: h.canvasH
-        });
+        app._miniReplay.push({ id: id, strokes: h.strokes, cw: h.canvasW, ch: h.canvasH });
+      }
+      // 逐步骤的记录是这一版才有的；更早存的记录没有 steps，就只显示"他填的 / 应填的"，
+      // 不能因为缺一个字段就整块不显示。
+      var walk = (h.steps || []).filter(function (s) { return s && (s.v || s.a); });
+      var walkHtml = walk.map(function (s) {
+        var right = String(s.v) === String(s.a);
+        return '<li class="walk-step' + (right ? '' : ' bad') + '">' +
+          '<span class="walk-q">' + esc(s.p || '') + '</span>' +
+          '<span class="walk-v">' + (s.v ? esc(s.v) : '没填') + (right ? ' ✓' : ' → ' + esc(s.a)) + '</span>' +
+          (s.t ? '<span class="walk-t">' + esc((T.ERROR_TAGS[s.t] || {}).label || '') + '</span>' : '') +
+          '</li>';
+      }).join('');
+      var kpName = (K.byId(h.kpId) || {}).name || '';
+      return '<div class="wrong-item">' +
+        '<div class="wrong-head">' +
+        '<span class="wrong-stem">' + esc(h.stem || '（无题干）') + '</span>' +
+        '<span class="kp-label">' + esc(fmtTime(h.ts)) + '</span>' +
+        '</div>' +
+        '<div class="wrong-answer">' +
+        '<span class="ans-mine">他填 <b>' + esc(h.answer || '（空着）') + '</b></span>' +
+        (h.expected ? '<span class="ans-right">应填 <b>' + esc(h.expected) + '</b></span>' : '') +
+        '</div>' +
+        '<div class="wrong-why">错因：' + esc(labels.join('、') || '再算一遍试试') +
+        (kpName ? '　·　' + esc(kpName) : '') +
+        (h.hintLevel > 0 ? '　·　用了提示' : '') + '</div>' +
+        (walkHtml ? '<details class="walk"><summary>他是怎么走的（' + walk.length + ' 步）</summary>' +
+          '<ol class="walk-list">' + walkHtml + '</ol></details>' : '') +
+        (h.strokes && h.strokes.length ? '<details class="walk"><summary>他当时的草稿</summary>' +
+          '<div class="mini-ink"><canvas id="' + id + '"></canvas></div></details>' : '') +
+        (advice ? '<div class="wrong-advice">可以这样讲：' + esc(advice) + '</div>' : '') +
+        '</div>';
+    }).join('');
+
+    // ---- 全部作答明细（核对用）----
+    // 详细内容已经在上面「错在哪」里给过了，这里只留一行一条，
+    // 让家长能确认"哪一天练了几道、对了哪些"。
+    var detailList = rangeHist.slice(-60).reverse().map(function (h, i) {
+      var id = 'mmini-' + i;
+      var hasInk = !!(h.strokes && h.strokes.length && h.canvasW && h.canvasH);
+      // 错题的草稿在上面看得到，这里不再画第二遍
+      if (hasInk && h.isCorrect) {
+        app._miniReplay.push({ id: id, strokes: h.strokes, cw: h.canvasW, ch: h.canvasH });
       }
       return '<div class="kp-row">' +
         '<div class="kp-head"><span class="kp-name">' + esc(h.stem || '（无题干）') + '</span>' +
         '<span class="kp-label">' + (h.isCorrect ? '对' : '错') + '</span></div>' +
         '<div class="kp-foot">' +
         '<span>' + esc(fmtTime(h.ts)) + '　' + esc((K.byId(h.kpId) || {}).name || '') + '</span>' +
-        '<span>' + (h.answer ? '他填的是 ' + esc(h.answer) : '') +
-        (h.isCorrect ? '' : ((h.answer ? '　' : '') + esc(dts.join('、') || '再算一遍试试'))) +
-        '</span></div>' +
-        (h.strokes && h.strokes.length ? '<div class="mini-ink"><canvas id="' + id + '"></canvas></div>' : '') +
+        '<span>' + (h.answer ? esc(h.answer) : '') +
+        (h.isCorrect ? '' : (h.expected ? ' → ' + esc(h.expected) : '')) + '</span></div>' +
+        (hasInk && h.isCorrect ? '<div class="mini-ink"><canvas id="' + id + '"></canvas></div>' : '') +
         '</div>';
-    }).join('');
+    });
 
     return '' +
       topbar('家长报告') +
@@ -2273,6 +2338,18 @@
 
       rangePickerHtml() +
 
+      // 查阅的主战场：一进来就该看到"他错在哪"，而不是先翻一串百分比。
+      // 顺序按家长的实际动作排：先看错的那几道 → 再看整体练了多少 → 最后才是明细。
+      '<div class="card">' +
+      '<h2 class="card-title">错在哪（' + rangeTxt + '，' + wrongList.length + ' 道）</h2>' +
+      '<p class="card-note">一条一条看：他填了什么、应该填什么、在哪一步拐错的。' +
+      '「他是怎么走的」点开是每一小步；有草稿的能看当时的笔迹。</p>' +
+      (wrongRows || (rangeHist.length
+        ? '<p class="card-note">这段时间没有错题，挺好。</p>'
+        : '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>')) +
+      (wrongList.length > 20 ? '<p class="card-note">只列了最近 20 道，共 ' + wrongList.length + ' 道。</p>' : '') +
+      '</div>' +
+
       '<div class="card">' +
       '<h2 class="card-title">每次练习（' + rangeTxt + '）</h2>' +
       '<p class="card-note">看「每题约多少秒」判断效率：明显变慢多半是卡住了。</p>' +
@@ -2284,19 +2361,12 @@
       (kpRows || '<p class="card-note">还没有数据。</p>') +
       '</div>' +
 
+      // 明细一行一条，只用来核对"哪天练了几道、错了哪几道"。
+      // 详细的他填了什么、错在哪一步，上面的「错在哪」已经给过了，不重复第二遍。
       '<div class="card">' +
-      '<h2 class="card-title">错题（' + rangeTxt + '，最多 20 条）</h2>' +
-      (wrongRows || (rangeHist.length
-        ? '<p class="card-note">这段时间没有错题，挺好。</p>'
-        : '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>')) +
-      '</div>' +
-
-      // 每道题的判定记录：家长最需要的一块 —— 题干、他填的答案、对错、错因、日期。
-      // 光看"错误点都在哪"的百分比，落不到"具体哪一道、他当时填的是什么"。
-      '<div class="card">' +
-      '<h2 class="card-title">每道题的记录（' + rangeTxt + '，' + detailRows.length + ' 条）</h2>' +
-      '<p class="card-note">最近的在最上面。写着"他填的是"那一句，是孩子当时实际写下的答案。</p>' +
-      (detailRows || '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>') +
+      '<h2 class="card-title">全部作答明细（' + rangeTxt + '，' + detailList.length + ' 条）</h2>' +
+      '<p class="card-note">最近的在最上面。错题后面那个「→」是应该填的答案。</p>' +
+      (detailList.join('') || '<p class="card-note">这段时间没有记录 —— 换「最近 30 天」或「全部」看看。</p>') +
       '</div>' +
 
       // 别的设备上练得怎么样：报告正文其实已经把它们的记录合并进来了，
@@ -2311,7 +2381,7 @@
   }
 
   function exportCsv() {
-    var rows = [['时间', '知识点', '题干', '对错', '错因', '阶梯步错因', '用时（秒）', '提示到第几级']];
+    var rows = [['时间', '知识点', '题干', '他填的', '正确答案', '对错', '错因', '阶梯步错因', '用时（秒）', '提示到第几级']];
     // 用合并后的历史：家长在自己手机上导出时，导出来才有孩子那台设备上的记录
     (mergedState().history || []).forEach(function (h) {
       var label = function (t) { return (T.ERROR_TAGS[t] || {}).label || t; };
@@ -2319,6 +2389,8 @@
         fmtTime(h.ts),
         (K.byId(h.kpId) || {}).name || h.kpId,
         h.stem || '',
+        h.answer || '',
+        h.expected || '',
         h.isCorrect ? '对' : '错',
         h.errorTag ? label(h.errorTag) : '',
         (h.stepTags || []).map(label).join('、'),

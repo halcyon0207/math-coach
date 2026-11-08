@@ -315,6 +315,32 @@ html, body {
   border-radius: 6px;
   max-width: 100%;
 }
+
+/* 报告里「错在哪」：一张卡就是一道错题。
+   他填的划掉、应填的摆旁边，家长一眼看得到差在哪，不用自己心算。 */
+.wrong-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.wrong-item:first-of-type { padding-top: 2px; border-top: 0; }
+.wrong-item:last-of-type { padding-bottom: 2px; }
+.wrong-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wrong-stem { font-weight: 600; font-size: 14.5px; line-height: 1.45; }
+.wrong-answer { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13.5px; }
+.wrong-answer b { font-size: 15.5px; font-variant-numeric: tabular-nums; }
+.ans-mine { color: var(--lv1); }
+.ans-mine b { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.ans-right { color: var(--ok); }
+.wrong-why { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.wrong-advice {
+  margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  background: var(--info-bg); color: var(--info); font-size: 13px; line-height: 1.5;
+}
+details.walk { margin-top: 8px; font-size: 13px; }
+details.walk > summary { color: var(--primary); cursor: pointer; padding: 3px 0; }
+.walk-list { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.walk-step { margin-bottom: 8px; }
+.walk-q { display: block; color: var(--text); }
+.walk-v { display: block; font-variant-numeric: tabular-nums; }
+.walk-step.bad .walk-v { color: var(--lv1); }
+.walk-t { display: block; color: var(--warn); }
 .kp-method { color: var(--primary); }
 /* 这个知识点现在出到哪一档了 —— "先夯实基础才加档"的可见凭据 */
 .kp-tier { color: var(--info); font-weight: 600; }
